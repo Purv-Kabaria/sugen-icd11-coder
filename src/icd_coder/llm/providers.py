@@ -18,6 +18,8 @@ from typing import Any, Literal, Protocol, cast, get_args
 import anthropic
 import openai
 from anthropic.types import MessageParam, OutputConfigParam
+from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat.completion_create_params import ResponseFormat
 from openai.types.responses import ResponseTextConfigParam
 from openai.types.shared_params import Reasoning
 
@@ -178,6 +180,84 @@ class OpenAIProvider:
             cache_read_tokens=cached,
         )
         return Reply(_parse_object(response.output_text), usage, self.price.cost(usage))
+
+
+class ChatCompletionsProvider:
+    """Any OpenAI-compatible Chat Completions endpoint, such as Groq, for development.
+
+    Not reachable from the grading box; used to generate data and to exercise the model
+    path with open-weight models. Strict schema decoding is tried first; models that
+    cannot decode a schema fall back to plain JSON mode with the schema in the prompt.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+        effort: str | None = None,
+        max_retries: int = 6,
+    ) -> None:
+        self.model = model
+        self.price = Price(0.0, 0.0, 0.0, 0.0)
+        self._effort = openai_effort(effort) if effort else None
+        self._client = openai.OpenAI(
+            base_url=base_url, api_key=api_key, timeout=timeout_seconds, max_retries=max_retries
+        )
+        self._strict = True
+
+    def complete_json(
+        self, system: str, prompt: str, schema: Mapping[str, Any], max_output_tokens: int
+    ) -> Reply:
+        if self._strict:
+            try:
+                return self._request(system, prompt, max_output_tokens, _schema_format(schema))
+            except ProviderError as error:
+                if "json_validate_failed" not in str(error):
+                    raise
+                LOG.info("%s cannot decode the schema strictly; using JSON mode", self.model)
+                self._strict = False
+        instructions = (
+            f"{system}\n\nAnswer with one JSON object matching this schema:\n{json.dumps(schema)}"
+        )
+        return self._request(instructions, prompt, max_output_tokens, {"type": "json_object"})
+
+    def _request(
+        self, system: str, prompt: str, max_output_tokens: int, response_format: ResponseFormat
+    ) -> Reply:
+        messages: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ]
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_completion_tokens=max_output_tokens,
+                response_format=response_format,
+                reasoning_effort=self._effort,
+            )
+        except openai.BadRequestError as error:
+            raise ProviderError(f"chat completions {error.code or error.message}") from error
+        except openai.APIError as error:
+            raise ProviderError(f"chat completions {type(error).__name__}") from error
+        choice = response.choices[0]
+        if choice.finish_reason != "stop" or not choice.message.content:
+            raise ProviderError(f"chat completions finish_reason {choice.finish_reason}")
+        usage = Usage(
+            input_tokens=response.usage.prompt_tokens if response.usage else 0,
+            output_tokens=response.usage.completion_tokens if response.usage else 0,
+        )
+        return Reply(_parse_object(choice.message.content), usage, 0.0)
+
+
+def _schema_format(schema: Mapping[str, Any]) -> ResponseFormat:
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": "answer", "strict": True, "schema": dict(schema)},
+    }
 
 
 class CachingProvider:

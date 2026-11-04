@@ -34,6 +34,7 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -41,16 +42,19 @@ from icd_coder import index_store
 from icd_coder.catalogue import Catalogue, Category
 from icd_coder.config import Settings, load_dotenv
 from icd_coder.guards import Budget
-from icd_coder.lexical import catalogue_labels, query_from_text
+from icd_coder.language import detect
+from icd_coder.lexical import LabelIndex, catalogue_labels, query_from_text
 from icd_coder.llm.providers import (
     AnthropicProvider,
     CachingProvider,
+    ChatCompletionsProvider,
     OpenAIProvider,
     Provider,
     ProviderError,
 )
 
 LOG = logging.getLogger("synthesize")
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SLICE_CHAPTERS = [f"{number:02d}" for number in range(1, 23)] + ["24", "25"]
 OTHER_SPECIFIED_RATE = 0.05
 
@@ -98,9 +102,19 @@ LANGUAGES_BY_PROFILE = {
     ],
 }
 
+LANGUAGE_CODES = {
+    "English": "en",
+    "French": "fr",
+    "Spanish": "es",
+    "Portuguese": "pt",
+    "Swahili": "sw",
+    "Hindi": "hi",
+    "Arabic": "ar",
+    "Chinese": "zh",
+}
+
 CONDITIONS_SYSTEM = (
-    "You are a family physician with long experience in public outpatient clinics in "
-    "Kenya, Uganda and Tanzania."
+    "You are a physician with long experience of outpatient medicine in many countries."
 )
 CONDITIONS_PROMPT = (
     "List {count} distinct conditions that clinicians diagnose and manage at outpatient "
@@ -108,6 +122,12 @@ CONDITIONS_PROMPT = (
     "child health, skin, eyes, ears, mouth, musculoskeletal, mental health, minor injuries and "
     "routine visits. Give each as a precise English clinical term with a relative frequency "
     "weight from 1 (rare) to 10 (very common)."
+)
+CHAPTER_PROMPT = (
+    "List 20 distinct conditions classified in the ICD-11 chapter '{title}' that are seen as "
+    "the main reason for a visit to an outpatient clinic, general or specialist, anywhere in "
+    "the world. Give each as a precise English clinical term with a relative frequency weight "
+    "from 1 (rare) to 10 (very common)."
 )
 CONDITIONS_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -205,24 +225,50 @@ def choose_leaf(family: Sequence[Category], rng: random.Random) -> Category | No
     return rng.choice(leaves)
 
 
-def primary_care_codes(
-    provider: Provider, budget: Budget, catalogue: Catalogue, count: int, rng: random.Random
-) -> list[str]:
-    reply = provider.complete_json(
-        CONDITIONS_SYSTEM, CONDITIONS_PROMPT.format(count=min(count, 200)), CONDITIONS_SCHEMA, 8000
-    )
+def condition_stems(
+    provider: Provider,
+    budget: Budget,
+    catalogue: Catalogue,
+    prompt: str,
+    chapter: str | None,
+) -> list[tuple[str, int]]:
+    """Families of the conditions a model lists, weighted by how common it says they are.
+
+    Each listed term is mapped to the best label-index match, restricted to the chapter
+    when one is given, so the sample follows what clinics see rather than how many codes
+    a chapter happens to contain.
+    """
+    reply = provider.complete_json(CONDITIONS_SYSTEM, prompt, CONDITIONS_SCHEMA, 8000)
     budget.charge(reply.cost_usd)
-    settings = Settings.from_environment(os.environ)
-    index = index_store.load_or_build(catalogue_labels(catalogue), settings.cache_dir)
+    index = _label_index(catalogue)
     weighted: list[tuple[str, int]] = []
     for item in reply.data.get("conditions", []):
-        ranked = index.search(query_from_text(str(item.get("term", ""))), limit=1)
-        if ranked:
-            weighted.append((catalogue.stem(ranked[0].code), max(1, int(item.get("weight", 1)))))
-    stems = [stem for stem, _ in weighted]
-    weights = [weight for _, weight in weighted]
+        ranked = index.search(query_from_text(str(item.get("term", ""))), limit=20)
+        matches = [
+            scored.code
+            for scored in ranked
+            if chapter is None or catalogue[scored.code].chapter == chapter
+        ]
+        if matches:
+            weight = item.get("weight", 1)
+            weighted.append(
+                (catalogue.stem(matches[0]), max(1, int(weight) if isinstance(weight, int) else 1))
+            )
+    return weighted
+
+
+def sample_codes(
+    weighted_by_group: Sequence[list[tuple[str, int]]],
+    catalogue: Catalogue,
+    count: int,
+    rng: random.Random,
+) -> list[str]:
+    """Pick a group uniformly, a family by weight within it, then a leaf of that family."""
+    groups = [group for group in weighted_by_group if group]
     codes: list[str] = []
-    for stem in rng.choices(stems, weights=weights, k=count * 2):
+    for _ in range(count * 3):
+        group = rng.choice(groups)
+        stem = rng.choices([stem for stem, _ in group], weights=[weight for _, weight in group])[0]
         leaf = choose_leaf(catalogue.family(stem), rng)
         if leaf is not None:
             codes.append(leaf.code)
@@ -231,19 +277,14 @@ def primary_care_codes(
     return codes
 
 
-def all_chapter_codes(catalogue: Catalogue, count: int, rng: random.Random) -> list[str]:
-    stems_by_chapter: dict[str, list[str]] = {}
-    for category in catalogue:
-        if category.parent is None and category.chapter in SLICE_CHAPTERS:
-            stems_by_chapter.setdefault(category.chapter, []).append(category.code)
-    codes: list[str] = []
-    while len(codes) < count:
-        chapter = rng.choice(SLICE_CHAPTERS)
-        stem = rng.choice(sorted(stems_by_chapter[chapter]))
-        leaf = choose_leaf(catalogue.family(stem), rng)
-        if leaf is not None:
-            codes.append(leaf.code)
-    return codes
+def chapter_titles(catalogue: Catalogue) -> dict[str, str]:
+    return {category.chapter: category.ancestors[0] for category in catalogue if category.ancestors}
+
+
+@lru_cache(maxsize=1)
+def _label_index(catalogue: Catalogue) -> LabelIndex:
+    settings = Settings.from_environment(os.environ)
+    return index_store.load_or_build(catalogue_labels(catalogue), settings.cache_dir)
 
 
 def make_targets(codes: Sequence[str], profile: str, rng: random.Random) -> list[Target]:
@@ -260,7 +301,7 @@ def make_targets(codes: Sequence[str], profile: str, rng: random.Random) -> list
 
 
 def write_and_judge(
-    target: Target, writer: Provider, judge: Provider, budget: Budget, catalogue: Catalogue
+    target: Target, writer: Provider, judge: Provider | None, budget: Budget, catalogue: Catalogue
 ) -> dict[str, Any] | None:
     context = family_context(catalogue[target.code], catalogue)
     request = (
@@ -273,6 +314,15 @@ def write_and_judge(
         note = str(written.data.get("note", "")).strip()
         if not written.data.get("plausible") or not note:
             return {"rejected": "implausible", "code": target.code}
+        if detect(note) != LANGUAGE_CODES[target.language]:
+            return {"rejected": f"not in {target.language}", "code": target.code}
+        if judge is None:
+            return {
+                "text": note,
+                "gold": [target.code],
+                "style": target.style,
+                "language": target.language,
+            }
         verdict = judge.complete_json(
             JUDGE_SYSTEM,
             f"<note>\n{note}\n</note>\n\nProposed code and context:\n{context}",
@@ -288,12 +338,27 @@ def write_and_judge(
     return {"text": note, "gold": [target.code], "style": target.style, "language": target.language}
 
 
-def build_provider(kind: str, model: str, effort: str, cache_dir: Path) -> Provider:
+def build_provider(spec: str, cache_dir: Path) -> Provider:
+    """A provider from `kind:model[:effort]`, where kind is anthropic, openai or groq."""
+    kind, model, *rest = spec.split(":")
+    effort = rest[0] if rest else "low"
     provider: Provider
     if kind == "anthropic":
         provider = AnthropicProvider(model, effort=effort, timeout_seconds=180)
-    else:
+    elif kind == "openai":
         provider = OpenAIProvider(model, effort=effort, timeout_seconds=180)
+    elif kind == "groq":
+        reasoning = effort if model.startswith("openai/") else None
+        provider = ChatCompletionsProvider(
+            model,
+            base_url=GROQ_BASE_URL,
+            api_key=os.environ["GROQ_API_KEY"],
+            timeout_seconds=180,
+            effort=reasoning,
+            max_retries=8,
+        )
+    else:
+        raise ValueError(f"unknown provider kind {kind!r}")
     return CachingProvider(provider, cache_dir)
 
 
@@ -307,8 +372,9 @@ def main() -> None:
     parser.add_argument("--count", type=int, required=True, help="targets to attempt")
     parser.add_argument("--name", required=True)
     parser.add_argument("--slice", default=None, help="slice label; default A or B by profile")
-    parser.add_argument("--writer", default="openai:gpt-5.4-mini:low")
-    parser.add_argument("--judge", default="anthropic:claude-sonnet-5-5:low")
+    parser.add_argument("--planner", default="groq:openai/gpt-oss-120b:low")
+    parser.add_argument("--writer", default="groq:qwen/qwen3.8-27b")
+    parser.add_argument("--judge", default="groq:openai/gpt-oss-120b:low", help="or none")
     parser.add_argument("--budget", type=float, default=5.0)
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--seed", type=int, default=2026)
@@ -318,16 +384,25 @@ def main() -> None:
     load_dotenv(Path(".env"))
     rng = random.Random(args.seed)
     cache_dir = Path("cache/synthesis")
-    writer = build_provider(*args.writer.split(":"), cache_dir)
-    judge = build_provider(*args.judge.split(":"), cache_dir)
+    writer = build_provider(args.writer, cache_dir)
+    judge = build_provider(args.judge, cache_dir) if args.judge != "none" else None
     budget = Budget(args.budget)
     settings = Settings.from_environment(os.environ)
     catalogue = Catalogue.load(settings.kb_dir)
 
+    planner = build_provider(args.planner, cache_dir)
     if args.profile == "primary-care":
-        codes = primary_care_codes(writer, budget, catalogue, args.count, rng)
+        prompt = CONDITIONS_PROMPT.format(count=150)
+        groups = [condition_stems(planner, budget, catalogue, prompt, None)]
     else:
-        codes = all_chapter_codes(catalogue, args.count, rng)
+        titles = chapter_titles(catalogue)
+        groups = [
+            condition_stems(
+                planner, budget, catalogue, CHAPTER_PROMPT.format(title=titles[chapter]), chapter
+            )
+            for chapter in SLICE_CHAPTERS
+        ]
+    codes = sample_codes(groups, catalogue, args.count, rng)
     targets = make_targets(codes, args.profile, rng)
 
     lock = threading.Lock()
@@ -348,19 +423,7 @@ def main() -> None:
 
     slice_name = args.slice or ("A" if args.profile == "primary-care" else "B")
     out_dir = Path("eval") / args.name
-    out_dir.mkdir(parents=True, exist_ok=True)
-    rows = []
-    for number, record in enumerate(
-        sorted(accepted, key=lambda item: (item["gold"][0], item["text"]))
-    ):
-        rows.append({"id": f"{args.name}-{number:04d}", "slice": slice_name, **record})
-    for file_name, subset in (
-        ("notes.jsonl", rows),
-        ("tune.jsonl", [row for row in rows if split_name(row["id"]) == "tune"]),
-        ("test.jsonl", [row for row in rows if split_name(row["id"]) == "test"]),
-    ):
-        with (out_dir / file_name).open("w", encoding="utf-8", newline="\n") as handle:
-            handle.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in subset)
+    rows = _write_outputs(out_dir, args.name, slice_name, accepted, rejected)
     _write_manifest(
         out_dir,
         args=args,
@@ -370,6 +433,32 @@ def main() -> None:
         spent=budget.spent,
     )
     LOG.info("accepted %d, rejected %d, spent $%.2f", len(rows), len(rejected), budget.spent)
+
+
+def _write_outputs(
+    out_dir: Path,
+    name: str,
+    slice_name: str,
+    accepted: Sequence[dict[str, Any]],
+    rejected: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Numbered rows in a stable order, split by id hash, plus the rejections."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ordered = sorted(accepted, key=lambda item: (item["gold"][0], item["text"]))
+    rows = [
+        {"id": f"{name}-{number:04d}", "slice": slice_name, **record}
+        for number, record in enumerate(ordered)
+    ]
+    outputs = {
+        "notes.jsonl": rows,
+        "tune.jsonl": [row for row in rows if split_name(row["id"]) == "tune"],
+        "test.jsonl": [row for row in rows if split_name(row["id"]) == "test"],
+        "rejected.jsonl": list(rejected),
+    }
+    for file_name, records in outputs.items():
+        with (out_dir / file_name).open("w", encoding="utf-8", newline="\n") as handle:
+            handle.writelines(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
+    return rows
 
 
 def _write_manifest(
@@ -382,19 +471,29 @@ def _write_manifest(
     spent: float,
 ) -> None:
     prompt_hash = hashlib.sha256(
-        (WRITER_SYSTEM + JUDGE_SYSTEM + CONDITIONS_PROMPT + json.dumps(STYLES)).encode()
+        (
+            WRITER_SYSTEM + JUDGE_SYSTEM + CONDITIONS_PROMPT + CHAPTER_PROMPT + json.dumps(STYLES)
+        ).encode()
     ).hexdigest()[:12]
     languages: dict[str, int] = {}
     for row in rows:
         languages[row["language"]] = languages.get(row["language"], 0) + 1
+    reasons: dict[str, int] = {}
+    for item in rejected:
+        own_reason = item["rejected"] == "implausible" or item["rejected"].startswith("not in")
+        reason = item["rejected"] if own_reason else "judge"
+        reasons[reason] = reasons.get(reason, 0) + 1
     lines = [
         f"# {args.name}",
         "",
         f"- Created: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')} by `tools/synthesize.py`",
         f"- Profile: {args.profile}; seed {args.seed}; targets attempted {attempted}",
-        f"- Writer: `{args.writer}`; judge: `{args.judge}`; prompt hash `{prompt_hash}`",
+        f"- Planner: `{args.planner}`; writer: `{args.writer}`; judge: `{args.judge}`",
+        f"- Prompt hash `{prompt_hash}`",
         f"- Accepted {len(rows)}; rejected by writer or judge {len(rejected)}; spent ${spent:.2f}",
         f"- Languages: {', '.join(f'{name} {count}' for name, count in sorted(languages.items()))}",
+        f"- Rejections: {', '.join(f'{name} {count}' for name, count in sorted(reasons.items()))}"
+        " (details in `rejected.jsonl`)",
         "- Split: `tune.jsonl` and `test.jsonl` by a hash of the note id. Tune on `tune` only.",
         "- No dev note was shown to any model.",
     ]
