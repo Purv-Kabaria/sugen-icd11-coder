@@ -54,6 +54,67 @@ def catalogue_labels(catalogue: Catalogue, languages: Iterable[str] = ()) -> lis
     return labels
 
 
+@dataclass(frozen=True, slots=True)
+class Evidence:
+    """How well a code's best label matches a query."""
+
+    score: float
+    coverage: float
+    covered: float
+
+
+class QueryScores:
+    """One query scored against the labels it touches, kept so codes can be inspected cheaply.
+
+    Only labels sharing a term with the query can score, so they are the only ones
+    stored: `labels` holds their row numbers in ascending order, and the other arrays
+    are aligned with it.
+    """
+
+    def __init__(
+        self,
+        index: LabelIndex,
+        *,
+        labels: IntArray,
+        covered: FloatArray,
+        coverage: FloatArray,
+        label_scores: FloatArray,
+        code_scores: FloatArray,
+    ) -> None:
+        self._index = index
+        self._labels = labels
+        self._covered = covered
+        self._coverage = coverage
+        self._label_scores = label_scores
+        self._code_scores = code_scores
+
+    def top(self, limit: int) -> list[ScoredCode]:
+        count = min(limit, int(np.count_nonzero(self._code_scores)))
+        if count == 0:
+            return []
+        best = np.argpartition(-self._code_scores, count - 1)[:count]
+        best = best[np.argsort(-self._code_scores[best], kind="stable")]
+        codes = self._index.codes
+        return [
+            ScoredCode(codes[position], float(self._code_scores[position])) for position in best
+        ]
+
+    def code_score(self, code: str) -> float:
+        return float(self._code_scores[self._index.position(code)])
+
+    def evidence(self, code: str) -> Evidence:
+        start, end = self._index.code_range(code)
+        low, high = np.searchsorted(self._labels, (start, end))
+        if low == high:
+            return Evidence(0.0, 0.0, 0.0)
+        best = int(low) + int(np.argmax(self._label_scores[low:high]))
+        return Evidence(
+            score=float(self._label_scores[best]),
+            coverage=float(self._coverage[best]),
+            covered=float(self._covered[best]),
+        )
+
+
 class LabelIndex:
     def __init__(
         self,
@@ -67,6 +128,7 @@ class LabelIndex:
     ) -> None:
         """Use `build` or `load`; labels must be grouped by code, `code_starts` marks each group."""
         self._codes = list(codes)
+        self._code_position = {code: position for position, code in enumerate(self._codes)}
         self._code_starts = code_starts
         self._label_languages = label_languages
         self._language_masks = {
@@ -75,7 +137,12 @@ class LabelIndex:
         self._vocabulary = list(vocabulary)
         self._term_position = {term: position for position, term in enumerate(vocabulary)}
         self._matrix = matrix
+        self._columns = matrix.tocsc()
         self._label_mass: FloatArray = np.asarray(matrix.sum(axis=1), dtype=np.float32).ravel()
+        self._label_code: IntArray = np.repeat(
+            np.arange(len(code_starts), dtype=np.int64),
+            np.diff(np.append(code_starts, matrix.shape[0])),
+        )
         self._coverage_power = coverage_power
 
     @classmethod
@@ -167,27 +234,76 @@ class LabelIndex:
         With `languages`, only labels in those languages count, so a French note is
         matched against English and French labels and not against Arabic ones.
         """
-        weights = np.zeros(len(self._vocabulary), dtype=np.float32)
-        for term, weight in query.items():
-            position = self._term_position.get(term)
-            if position is not None:
-                weights[position] = max(weights[position], weight)
-        if not weights.any():
-            return []
-        covered = self._matrix @ weights
-        coverage = np.divide(
-            covered, self._label_mass, out=np.zeros_like(covered), where=self._label_mass > 0
+        return self.score(query, languages).top(limit)
+
+    def score(
+        self, query: Mapping[str, float], languages: Collection[str] | None = None
+    ) -> QueryScores:
+        """Scores of the labels and codes a query touches, for ranking and for evidence.
+
+        Work is proportional to the postings of the query's terms, not to the number of
+        labels, because only labels that share a term with the query can score.
+        """
+        terms = {
+            self._term_position[term]: weight
+            for term, weight in query.items()
+            if term in self._term_position and weight > 0
+        }
+        code_scores = np.zeros(len(self._codes), dtype=np.float32)
+        if not terms:
+            empty_rows = np.zeros(0, dtype=np.int64)
+            empty = np.zeros(0, dtype=np.float32)
+            return QueryScores(
+                self,
+                labels=empty_rows,
+                covered=empty,
+                coverage=empty,
+                label_scores=empty,
+                code_scores=code_scores,
+            )
+
+        block = self._columns[:, list(terms)]
+        contributions = block.data * np.repeat(
+            np.fromiter(terms.values(), dtype=np.float32), np.diff(block.indptr)
         )
-        label_scores = covered * coverage**self._coverage_power
+        labels, positions = np.unique(block.indices, return_inverse=True)
+        covered = np.bincount(positions, weights=contributions).astype(np.float32)
+        coverage: FloatArray = (covered / np.maximum(self._label_mass[labels], 1e-9)).astype(
+            np.float32
+        )
+        label_scores: FloatArray = (covered * coverage**self._coverage_power).astype(np.float32)
         if languages is not None:
-            label_scores *= self._mask(languages)
-        code_scores = np.maximum.reduceat(label_scores, self._code_starts)
-        top = min(limit, int(np.count_nonzero(code_scores)))
-        if top == 0:
-            return []
-        best = np.argpartition(-code_scores, top - 1)[:top]
-        best = best[np.argsort(-code_scores[best], kind="stable")]
-        return [ScoredCode(self._codes[index], float(code_scores[index])) for index in best]
+            label_scores *= self._mask(languages)[labels]
+        np.maximum.at(code_scores, self._label_code[labels], label_scores)
+        return QueryScores(
+            self,
+            labels=labels.astype(np.int64),
+            covered=covered,
+            coverage=coverage,
+            label_scores=label_scores,
+            code_scores=code_scores,
+        )
+
+    def position(self, code: str) -> int:
+        return self._code_position[code]
+
+    def code_range(self, code: str) -> tuple[int, int]:
+        """The label rows of a code."""
+        position = self._code_position[code]
+        end = (
+            int(self._code_starts[position + 1])
+            if position + 1 < len(self._code_starts)
+            else self._matrix.shape[0]
+        )
+        return int(self._code_starts[position]), end
+
+    @property
+    def codes(self) -> Sequence[str]:
+        return self._codes
+
+    @property
+    def code_starts(self) -> IntArray:
+        return self._code_starts
 
 
 def query_from_text(text: str, weight: float = 1.0) -> dict[str, float]:

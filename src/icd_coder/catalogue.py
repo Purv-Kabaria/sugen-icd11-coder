@@ -72,6 +72,8 @@ class Catalogue:
             if category.parent is not None:
                 children.setdefault(category.parent, []).append(category.code)
         self._children = {code: tuple(sorted(kids)) for code, kids in children.items()}
+        self._descendants: dict[str, tuple[Category, ...]] = {}
+        self._stems: dict[str, str] = {}
 
     @classmethod
     def load(cls, kb_dir: Path, languages: Iterable[str] = ()) -> Catalogue:
@@ -141,20 +143,24 @@ class Catalogue:
 
     def stem(self, code: str) -> str:
         """The depth-one ancestor that heads the code's family."""
-        current = self._by_code[code]
-        while current.parent is not None:
-            current = self._by_code[current.parent]
-        return current.code
+        if code not in self._stems:
+            current = self._by_code[code]
+            while current.parent is not None:
+                current = self._by_code[current.parent]
+            self._stems[code] = current.code
+        return self._stems[code]
 
     def descendants(self, code: str) -> tuple[Category, ...]:
-        """Every category below the code, in code order."""
-        found: list[Category] = []
-        pending = list(self.children(code))
-        while pending:
-            current = pending.pop()
-            found.append(current)
-            pending.extend(self.children(current.code))
-        return tuple(sorted(found, key=lambda category: category.code))
+        """Every category below the code, in code order. Memoised: the tree never changes."""
+        if code not in self._descendants:
+            found: list[Category] = []
+            pending = list(self.children(code))
+            while pending:
+                current = pending.pop()
+                found.append(current)
+                pending.extend(self.children(current.code))
+            self._descendants[code] = tuple(sorted(found, key=lambda category: category.code))
+        return self._descendants[code]
 
     def family(self, code: str) -> tuple[Category, ...]:
         """The family stem and every descendant, in code order."""
