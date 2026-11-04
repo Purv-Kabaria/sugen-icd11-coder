@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 from icd_coder.catalogue import Catalogue
 from icd_coder.clinical_text import weighted_clauses
+from icd_coder.language import detect
 from icd_coder.lexical import LabelIndex, ScoredCode, merge_queries, query_from_text
 
 MAX_CODES = 3
@@ -20,7 +21,7 @@ class OfflineCoder:
         query = merge_queries(
             *(query_from_text(clause.text, clause.weight) for clause in weighted_clauses(text))
         )
-        return self._index.search(query, limit=limit)
+        return self._index.search(query, limit=limit, languages={"en", detect(text)})
 
     def predict(self, text: str) -> tuple[str, ...]:
         return specific_codes(self.rank(text), self._catalogue)

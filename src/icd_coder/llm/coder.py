@@ -27,6 +27,7 @@ CHOICE_MAX_TOKENS = 800
 RESULTS_PER_QUERY = 15
 MAX_GUESSES = 5
 MAX_SEARCH_TERMS = 6
+ENGLISH = frozenset({"en"})
 
 
 class BudgetExhaustedError(ProviderError):
@@ -76,7 +77,9 @@ class ModelCoder:
         rankings = [
             [
                 scored.code
-                for scored in self._index.search(query_from_text(query), RESULTS_PER_QUERY)
+                for scored in self._index.search(
+                    query_from_text(query), RESULTS_PER_QUERY, languages=ENGLISH
+                )
             ]
             for query in queries
             if query

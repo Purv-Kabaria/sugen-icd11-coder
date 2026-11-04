@@ -70,6 +70,12 @@ subject line. Times are IST.
 - Evidence: retrieval-then-rerank is the pattern that works in the literature (Retrieve-Rank, arXiv 2407.12849; MedCodER, arXiv 2409.15368), and near-miss specificity errors dominate LLM coding failures (arXiv 2510.07629), hence whole families in the prompt. Prices: Claude Haiku 5.5 costs $0.10/$0.50 per million tokens, so two calls with a 4k-token candidate list cost about $0.0006 per note, a twentieth of the 1 cent allowance.
 - Revisit: measure Sonnet 5.5 for the choice call and the effort level once API keys are available.
 
+## 2026-11-04 14:35 IST - Search translations only for notes in that language
+- Commit: Filter label search by the note's language
+- Decision: tag each label with its language, detect the note's language (script counts for Arabic, Cyrillic, CJK and Devanagari; function-word overlap for Latin-script languages), and match English labels plus the note's language. The model path searches its English phrasings against English labels only. Considered always searching every language, and English only.
+- Evidence: with every translation searched, English dev top-1 fell from 0.600 to 0.583 as foreign labels added noise; with the filter it is back to 0.600/0.817 (50.4 of 75). On held-out WHO translations (`experiments/label_holdout.py --language`), the translations lift exact top-1 from 0.253 to 0.495 for French and from 0.159 to 0.497 for Spanish. Per-language masks are precomputed, so filtering adds no measurable latency.
+- Revisit: a multilingual dense encoder for languages WHO has not translated (Swahili, Hindi).
+
 ## AI tooling mistakes caught
 
 - 2026-11-04: the first tokenizer (written by Claude Code) kept bare numbers as tokens. Error analysis showed dose and vital-sign numbers matching chemical labels ("2,8 dihydroxyadenine urolithiasis" for a constipation note). Fixed by fusing numbers with qualifiers only.

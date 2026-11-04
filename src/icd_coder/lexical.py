@@ -9,7 +9,7 @@ partially mentioned one, and longer fully mentioned labels beat shorter ones.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +31,7 @@ PARALLEL_THRESHOLD = 50_000
 class Label:
     code: str
     text: str
+    language: str = "en"
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,11 +45,12 @@ def catalogue_labels(catalogue: Catalogue, languages: Iterable[str] = ()) -> lis
     wanted = set(languages)
     labels: list[Label] = []
     for category in sorted(catalogue, key=lambda item: item.code):
-        texts = {category.title, *category.index_terms, *category.inclusions}
-        for language, translation in category.translations.items():
+        english = {category.title, *category.index_terms, *category.inclusions}
+        labels.extend(Label(category.code, text) for text in sorted(english))
+        for language, translation in sorted(category.translations.items()):
             if language in wanted:
-                texts.update((translation.title, *translation.terms))
-        labels.extend(Label(category.code, text) for text in sorted(texts))
+                texts = {translation.title, *translation.terms}
+                labels.extend(Label(category.code, text, language) for text in sorted(texts))
     return labels
 
 
@@ -59,11 +61,17 @@ class LabelIndex:
         code_starts: IntArray,
         vocabulary: Sequence[str],
         matrix: sparse.csr_matrix,
+        *,
+        label_languages: npt.NDArray[np.str_],
         coverage_power: float = 1.0,
     ) -> None:
         """Use `build` or `load`; labels must be grouped by code, `code_starts` marks each group."""
         self._codes = list(codes)
         self._code_starts = code_starts
+        self._label_languages = label_languages
+        self._language_masks = {
+            language: label_languages == language for language in np.unique(label_languages)
+        }
         self._vocabulary = list(vocabulary)
         self._term_position = {term: position for position, term in enumerate(vocabulary)}
         self._matrix = matrix
@@ -97,7 +105,23 @@ class LabelIndex:
         matrix.indptr = matrix.indptr.astype(np.int32)
 
         codes, code_starts = _code_groups([label.code for label in ordered])
-        return cls(codes, code_starts, vocabulary, matrix, coverage_power)
+        languages = np.array([label.language for label in ordered])
+        return cls(
+            codes,
+            code_starts,
+            vocabulary,
+            matrix,
+            label_languages=languages,
+            coverage_power=coverage_power,
+        )
+
+    def _mask(self, languages: Collection[str]) -> npt.NDArray[np.bool_]:
+        mask = np.zeros(len(self._label_languages), dtype=bool)
+        for language in languages:
+            known = self._language_masks.get(language)
+            if known is not None:
+                mask |= known
+        return mask
 
     def save(self, path: Path) -> None:
         """Write the index atomically, so a reader never sees a half-written file."""
@@ -112,6 +136,7 @@ class LabelIndex:
             code_starts=self._code_starts,
             codes=np.array(self._codes),
             vocabulary=np.array(self._vocabulary),
+            label_languages=self._label_languages,
         )
         partial.replace(path)
 
@@ -127,11 +152,21 @@ class LabelIndex:
                 stored["code_starts"],
                 stored["vocabulary"].tolist(),
                 matrix,
-                coverage_power,
+                label_languages=stored["label_languages"],
+                coverage_power=coverage_power,
             )
 
-    def search(self, query: Mapping[str, float], limit: int = 50) -> list[ScoredCode]:
-        """Best codes for a query given as term weights in [0, 1]."""
+    def search(
+        self,
+        query: Mapping[str, float],
+        limit: int = 50,
+        languages: Collection[str] | None = None,
+    ) -> list[ScoredCode]:
+        """Best codes for a query given as term weights in [0, 1].
+
+        With `languages`, only labels in those languages count, so a French note is
+        matched against English and French labels and not against Arabic ones.
+        """
         weights = np.zeros(len(self._vocabulary), dtype=np.float32)
         for term, weight in query.items():
             position = self._term_position.get(term)
@@ -144,6 +179,8 @@ class LabelIndex:
             covered, self._label_mass, out=np.zeros_like(covered), where=self._label_mass > 0
         )
         label_scores = covered * coverage**self._coverage_power
+        if languages is not None:
+            label_scores *= self._mask(languages)
         code_scores = np.maximum.reduceat(label_scores, self._code_starts)
         top = min(limit, int(np.count_nonzero(code_scores)))
         if top == 0:
