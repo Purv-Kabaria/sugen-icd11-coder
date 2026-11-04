@@ -106,6 +106,12 @@ subject line. Times are IST.
 - Evidence: `bedrock list-foundation-models` lists Haiku 5.5 as active, and a test call reached it through the `us.` inference profile. The account first needs Anthropic's one-time use-case form: before it, Haiku 5.5 and Sonnet 5.5 returned 403 and Haiku 4.5 returned "use case details have not been submitted". Login uses `aws login` console credentials, which need `botocore[crt]`.
 - Revisit: run the model path on dev and held-out notes once access is granted.
 
+## 2026-11-04 16:00 IST - Measure the model path with DeepSeek V3.2 on Bedrock, within AWS credits
+- Commit: Measure the model path with models AWS sells on Bedrock
+- Decision: Claude on Bedrock is sold through AWS Marketplace and needs a card ("INVALID_PAYMENT_INSTRUMENT"), which promotional credits do not cover, so the model path is measured with models AWS bills directly. A Converse API adapter reaches all of them; the schema goes into the instructions and the JSON object is taken from the reply. DeepSeek V3.2 ($0.62/$1.85 per million tokens, AWS Price List API) was chosen over Kimi K2.5, GLM 5, Mistral Large 3, Qwen3 Next, gpt-oss-120b and Nova Pro, which all answered a probe call, as a strong general model at low cost. Prompts were not changed for this model or tuned on these runs.
+- Evidence: dev 0.617/0.800 (50.8) offline to 0.883/0.983 (68.7 of 75) with the model, 60 of 60 notes upgraded, $0.0023 per note, p95 latency 12.5 s, 57 s wall for 60 notes at concurrency 6. On 150 held-out WHO notes: top-1 0.760 to 0.853 and top-3 0.847 to 0.907; paraphrased definitions 0.49 to 0.82 and translated titles 0.75 to 1.00, but index-term notes 0.94 to 0.81 and parent-term notes 1.00 to 0.90, where the model overrides correct offline answers. Total spend for these runs $0.56.
+- Revisit: combine the two (keep the offline answer when it matched a WHO label exactly), chosen on a separate tuning split; Claude Haiku 5.5 once the account can reach it.
+
 ## AI tooling mistakes caught
 
 - 2026-11-04: the first tokenizer (written by Claude Code) kept bare numbers as tokens. Error analysis showed dose and vital-sign numbers matching chemical labels ("2,8 dihydroxyadenine urolithiasis" for a constipation note). Fixed by fusing numbers with qualifiers only.

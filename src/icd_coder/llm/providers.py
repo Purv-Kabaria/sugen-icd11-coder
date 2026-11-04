@@ -77,6 +77,14 @@ PRICES: Mapping[str, Price] = {
     "gpt-5.4-mini": Price(0.75, 4.50, 0.075, 0.75),
     "gpt-5-mini": Price(0.25, 2.00, 0.025, 0.25),
     "gpt-5-nano": Price(0.05, 0.40, 0.005, 0.05),
+    # Models AWS sells on Bedrock, from the AWS Price List API (us-east-1, 2026-11-04).
+    "deepseek.v3.2": Price(0.62, 1.85, 0.0, 0.0),
+    "moonshotai.kimi-k2.5": Price(0.60, 3.00, 0.0, 0.0),
+    "zai.glm-5": Price(1.00, 3.20, 0.0, 0.0),
+    "mistral.mistral-large-3-675b-instruct": Price(0.50, 1.50, 0.0, 0.0),
+    "qwen.qwen3-next-80b-a3b": Price(0.14, 1.20, 0.0, 0.0),
+    "openai.gpt-oss-120b-1:0": Price(0.15, 0.60, 0.0, 0.0),
+    "amazon.nova-pro-v1:0": Price(0.80, 3.20, 0.0, 0.0),
 }
 UNKNOWN_MODEL_PRICE = Price(5.00, 25.00, 0.50, 6.25)
 

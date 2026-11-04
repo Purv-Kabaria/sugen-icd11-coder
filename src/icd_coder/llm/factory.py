@@ -10,6 +10,7 @@ from icd_coder.catalogue import Catalogue
 from icd_coder.config import Settings
 from icd_coder.guards import Budget, FailureStreak
 from icd_coder.lexical import LabelIndex
+from icd_coder.llm.bedrock import ConverseProvider
 from icd_coder.llm.coder import ModelCoder
 from icd_coder.llm.providers import (
     UNKNOWN_MODEL_PRICE,
@@ -30,6 +31,12 @@ def _provider(settings: Settings, name: str) -> Provider:
         return AnthropicProvider(
             settings.anthropic_model,
             effort=settings.anthropic_effort,
+            timeout_seconds=settings.request_timeout_seconds,
+        )
+    if name == "bedrock" and "anthropic." not in settings.bedrock_model:
+        return ConverseProvider(
+            settings.bedrock_model,
+            region=settings.bedrock_region,
             timeout_seconds=settings.request_timeout_seconds,
         )
     if name == "bedrock":

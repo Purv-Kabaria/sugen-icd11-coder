@@ -53,7 +53,7 @@ strict = true
 python_version = "3.12"
 
 [[tool.mypy.overrides]]
-module = ["snowballstemmer"]
+module = ["snowballstemmer", "boto3", "botocore.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
