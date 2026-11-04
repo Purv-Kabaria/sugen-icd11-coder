@@ -63,4 +63,4 @@ Code written by Claude Code. Research, guidance, design decisions and recommenda
 
 [Architecture](docs/ARCHITECTURE.md) · [Design decisions](docs/DESIGN.md) · [Evaluation](docs/EVALUATION.md) · [Engineering](docs/ENGINEERING.md) · [Decision log](DECISIONS.md) · settings in [.env.example](.env.example)
 
-Hours spent: about 3.5.
+Hours spent: 5.
