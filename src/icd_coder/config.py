@@ -14,6 +14,7 @@ PREFIX = "ICD_CODER_"
 class Settings:
     kb_dir: Path
     cache_dir: Path
+    model_dir: Path | None
     languages: tuple[str, ...]
     deadline_seconds: float
     budget_usd: float
@@ -39,6 +40,7 @@ class Settings:
         return cls(
             kb_dir=Path(setting("KB_DIR", "data/kb")),
             cache_dir=Path(setting("CACHE_DIR", "cache/index")),
+            model_dir=Path(models) if (models := setting("MODEL_DIR", "data/models")) else None,
             languages=tuple(language for language in languages.split(",") if language),
             deadline_seconds=float(setting("DEADLINE_SECONDS", "2700")),
             budget_usd=float(setting("BUDGET_USD", "4.50")),

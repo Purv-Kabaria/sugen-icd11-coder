@@ -19,12 +19,14 @@ from types import FrameType
 from icd_coder import index_store
 from icd_coder.catalogue import Catalogue
 from icd_coder.config import Settings
+from icd_coder.features import FeatureExtractor
 from icd_coder.guards import Budget, Deadline
 from icd_coder.lexical import LabelIndex, catalogue_labels
 from icd_coder.llm.factory import build_model_coder
 from icd_coder.notes import PredictionWriter, read_notes
 from icd_coder.offline import OfflineCoder
 from icd_coder.pipeline import run
+from icd_coder.reranker import Reranker
 
 LOG = logging.getLogger("icd_coder")
 
@@ -45,10 +47,10 @@ def main(argv: list[str] | None = None) -> int:
     LOG.info("read %d notes", len(notes))
     with PredictionWriter(args.predictions) as writer:
         try:
-            catalogue, index = _load_knowledge(settings)
+            catalogue, index = load_knowledge(settings)
             report = run(
                 notes,
-                OfflineCoder(catalogue, index),
+                offline_coder(settings, catalogue, index),
                 catalogue,
                 writer,
                 upgrader=build_model_coder(settings, catalogue, index, budget),
@@ -73,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def prepare() -> int:
     _configure_logging()
-    _load_knowledge(Settings.from_environment(os.environ))
+    load_knowledge(Settings.from_environment(os.environ))
     return 0
 
 
@@ -85,7 +87,17 @@ def _configure_logging() -> None:
     )
 
 
-def _load_knowledge(settings: Settings) -> tuple[Catalogue, LabelIndex]:
+def offline_coder(settings: Settings, catalogue: Catalogue, index: LabelIndex) -> OfflineCoder:
+    """The offline coder, with the trained reranker when one ships in the model directory."""
+    reranker = (
+        Reranker.load(settings.model_dir, FeatureExtractor(catalogue, index))
+        if settings.model_dir is not None
+        else None
+    )
+    return OfflineCoder(catalogue, index, reranker)
+
+
+def load_knowledge(settings: Settings) -> tuple[Catalogue, LabelIndex]:
     catalogue = Catalogue.load(settings.kb_dir, settings.languages)
     labels = catalogue_labels(catalogue, settings.languages)
     return catalogue, index_store.load_or_build(labels, settings.cache_dir)

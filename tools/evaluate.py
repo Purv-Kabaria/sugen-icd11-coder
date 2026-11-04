@@ -26,13 +26,13 @@ import numpy as np
 
 from icd_coder import index_store
 from icd_coder.catalogue import Catalogue
+from icd_coder.cli import offline_coder
 from icd_coder.config import Settings, load_dotenv
 from icd_coder.evaluation import Example, evaluate, format_report, load_examples
 from icd_coder.guards import Budget, Deadline
 from icd_coder.lexical import ScoredCode, catalogue_labels
 from icd_coder.llm.factory import build_model_coder
 from icd_coder.notes import Note, PredictionWriter
-from icd_coder.offline import OfflineCoder
 from icd_coder.pipeline import NoteUpgrader, run
 
 LOG = logging.getLogger("evaluate")
@@ -63,6 +63,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="evaluate only the first N notes")
     parser.add_argument("--no-reply-cache", action="store_true")
     parser.add_argument("--offline", action="store_true", help="skip the model")
+    parser.add_argument("--rules", action="store_true", help="rank offline by rules only")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -71,6 +72,8 @@ def main() -> None:
         os.environ.setdefault("ICD_CODER_RESPONSE_CACHE", "cache/replies")
     if args.offline:
         os.environ["ICD_CODER_PROVIDER"] = "none"
+    if args.rules:
+        os.environ["ICD_CODER_MODEL_DIR"] = ""
     settings = Settings.from_environment(os.environ)
 
     examples = load_examples(args.gold)
@@ -91,7 +94,7 @@ def main() -> None:
     with PredictionWriter(predictions_path) as writer:
         report = run(
             notes,
-            OfflineCoder(catalogue, index),
+            offline_coder(settings, catalogue, index),
             catalogue,
             writer,
             upgrader=timed,

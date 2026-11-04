@@ -82,6 +82,12 @@ subject line. Times are IST.
 - Evidence: with 12 workers and SDK backoff alone, the first runs lost targets once retries were exhausted ("target CA24 failed: chat completions RateLimitError", six such failures in five minutes). With the limiter the relaunched runs had no failed targets. Replies are cached on disk, so the relaunch reused every completed call.
 - Revisit: read Groq's rate-limit headers to adapt the window instead of using a fixed 7,000 tokens per minute.
 
+## 2026-11-04 14:50 IST - Learned reranker over hierarchy-expanded candidates
+- Commit: Add LightGBM reranker with rule-based fallback
+- Decision: the offline coder ranks candidates with a seed-bagged ensemble of LightGBM LambdaRank models when model files ship in `data/models`, and falls back to the rules when they are missing, unreadable or built for different features; a short learned list is padded from the rules. Training and inference share `FeatureExtractor` (30 features from three lexical views, the hierarchy and the note). `tools/train_reranker.py` cross-validates with folds grouped by the gold code's family, so no fold is scored on a family it trained on, picks the round count from the folds, and reports a paired-bootstrap interval for the top-1 gain on held-out synthetic sets. It refuses dev notes as input. Considered logistic regression on the same features (no listwise objective) and a cross-encoder (no GPU at run time, and no clinical cross-encoder covers ICD-11 MMS).
+- Evidence: the candidate generator reaches 96.7% recall of dev gold codes at 10.7 ms per note, so most rule-based misses are ordering errors a ranker can fix. Grouping folds by family stops the model from memorising family-specific score patterns and is the leakage risk random folds would hide. Dev score with no model files is unchanged at 0.600/0.817. LightGBM needs `libgomp1` in both image stages, because the build stage imports the CLI to prepare the index; the first build missed that and failed, and the smoke test caught it. The image grows from 646 to 680 MB. Group k-fold is implemented in the tool (about ten lines) rather than pulling in scikit-learn, which ships no type information.
+- Revisit: training numbers are recorded with the commit that ships the models.
+
 ## AI tooling mistakes caught
 
 - 2026-11-04: the first tokenizer (written by Claude Code) kept bare numbers as tokens. Error analysis showed dose and vital-sign numbers matching chemical labels ("2,8 dihydroxyadenine urolithiasis" for a constipation note). Fixed by fusing numbers with qualifiers only.

@@ -4,4 +4,5 @@
 !README.md
 !src/
 !data/kb/
+!data/models/
 **/__pycache__

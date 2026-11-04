@@ -20,7 +20,7 @@ from icd_coder.catalogue import Catalogue
 from icd_coder.guards import Deadline
 from icd_coder.lexical import ScoredCode
 from icd_coder.notes import Note, NoteId, PredictionWriter
-from icd_coder.offline import MAX_CODES, OfflineCoder, specific_codes
+from icd_coder.offline import MAX_CODES, OfflineCoder
 
 LOG = logging.getLogger(__name__)
 POLL_SECONDS = 1.0
@@ -69,7 +69,7 @@ def run(
 ) -> RunReport:
     started = time.monotonic()
     rankings = {note.id: offline.rank(note.text) for note in notes}
-    fallbacks = {note_id: specific_codes(ranked, catalogue) for note_id, ranked in rankings.items()}
+    fallbacks = {note.id: offline.predict(note.text) for note in notes}
     LOG.info("offline predictions ready for %d notes", len(notes))
 
     upgraded = 0
