@@ -24,7 +24,7 @@ Two coders work together:
 | Coder | Needs network | Speed | Role |
 |---|---|---|---|
 | Offline coder | No | About 20 ms per note | Answers every note first. This is the safety net and the no-key answer. |
-| Model coder | Yes (Anthropic, OpenAI or any OpenAI-compatible server) | Seconds per note | Tries to improve each answer. If it fails, runs out of time or runs out of money, the offline answer is used. |
+| Model coder | Yes (Anthropic, OpenAI, Amazon Bedrock or any OpenAI-compatible server) | Seconds per note | Tries to improve each answer. If it fails, runs out of time or runs out of money, the offline answer is used. |
 
 The offline coder always runs first, for every note, before any model call. That one ordering rule is what makes the system safe: whatever happens later, every note already has a good answer.
 
@@ -73,7 +73,7 @@ sequenceDiagram
     M->>P: codes (checked, resolved and padded by the pipeline)
 ```
 
-The model never invents codes from memory. Models misremember ICD-11 codes (during testing one guessed `1A61.0` for malaria), so it only chooses from a list the coder built from WHO data. Its answer is then checked against the official code list, resolved to the most specific valid code and padded from the offline answer.
+The model never invents codes from memory. Models misremember ICD-11 codes (one guessed `1A61.0` for malaria), so it only chooses from a list the coder built from WHO data. Its answer is then checked against the official code list, resolved to the most specific valid code and padded from the offline answer.
 
 ## How a run is kept safe
 
@@ -143,7 +143,8 @@ flowchart LR
 | `features.py` | Candidate codes and their 30 features, shared by training and running. |
 | `reranker.py` | Loads and runs the LightGBM ensemble. |
 | `evaluation.py` | The official metrics plus extra diagnostics. |
-| `llm/providers.py` | One interface over Anthropic, OpenAI and any OpenAI-compatible server, with cost from usage. |
+| `llm/providers.py` | One interface over Anthropic (direct or on Bedrock), OpenAI and any OpenAI-compatible server, with cost from usage. |
+| `llm/bedrock.py` | Other Bedrock models through the Converse API. |
 | `llm/rate_limit.py` | Keeps a client under a tokens-per-minute limit. |
 | `llm/prompts.py` | The two prompts and their JSON schemas. |
 | `llm/candidates.py` | Builds the family trees the model chooses from. |
@@ -158,7 +159,7 @@ Tools and experiments sit outside the package because the runtime never needs th
 | `tools/build_kb.py` | Turn the crawl into the compact knowledge base in `data/kb`. |
 | `tools/build_who_notes.py` | Build labelled training notes from WHO text, with no model calls. |
 | `tools/train_reranker.py` | Cross-validate, train and save the reranker ensemble. |
-| `tools/synthesize.py` | Generate LLM-written notes for evaluation (paused; see [DESIGN.md](DESIGN.md)). |
+| `tools/synthesize.py` | Generate LLM-written, judged notes for evaluation. |
 | `tools/evaluate.py` | Run the full pipeline on a labelled set and report quality, cost and speed. |
 | `experiments/` | Small benchmarks used to make specific choices. |
 

@@ -46,7 +46,7 @@ A model's answer goes through the same checks as user input: normalised, looked 
 
 | Measure | Value |
 |---|---|
-| Building the label index (700k labels) | 98 s at first; 5.7 s after a translation table, memoised stemming and a process pool |
+| Building the label index (700k labels) | 5.7 s, using a character translation table, memoised stemming and a process pool (98 s without them) |
 | Loading the stored index | About a second, done at image build so a run never rebuilds it |
 | Search | Touches only labels that share a word with the note |
 | Offline coding with the reranker | 60 dev notes in 1.2 s (about 20 ms a note) |
@@ -68,7 +68,7 @@ Expensive results are stored with a key made from a hash of their inputs and the
 | Formatting | `uv run ruff format --check` |
 | Lint (wide rule set) | `uv run ruff check` |
 | Strict typing | `uv run mypy --strict src` |
-| Tests (88) | `uv run pytest` |
+| Tests (97) | `uv run pytest` |
 
 Tests never touch the network: model providers are replaced by fakes that return scripted answers, so budget exhaustion, failure streaks, deadlines and stop signals are all tested deterministically.
 
@@ -83,7 +83,7 @@ This was treated as the main risk to the numbers being honest.
 
 | Rule | How it is enforced |
 |---|---|
-| Dev notes are for regression checks, never training or tuning | `train_reranker.py` refuses them; offline tuning on dev stopped after the first round of general fixes |
+| Dev notes are for regression checks, never training or tuning | `train_reranker.py` refuses them; dev guided only the first round of general clinical-text mechanisms |
 | Test notes come from code families the model never trained on | Families split 80/20 by a hash of the family code |
 | Cross-validation folds are grouped by family | Implemented in `train_reranker.grouped_folds` |
 | Model choices use training folds only | Boosting rounds come from cross-validation; held-out notes only report results |
