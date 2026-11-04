@@ -1,8 +1,9 @@
-"""One interface over the Anthropic and OpenAI SDKs: a JSON answer plus its cost.
+"""One interface over model providers: a JSON answer plus its cost.
 
-Both SDKs read their key from the environment and honour `HTTPS_PROXY`, which is the
-only route to the APIs on the grading box. Errors surface as `ProviderError` so the
-caller can fall back without knowing which SDK raised.
+Adapters exist for Anthropic, OpenAI and any OpenAI-compatible server. The official
+SDKs read their key from the environment and honour `HTTPS_PROXY`, which is the only
+route to the APIs on the grading box. Errors surface as `ProviderError` so the caller
+can fall back without knowing which SDK raised.
 """
 
 from __future__ import annotations

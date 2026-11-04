@@ -251,6 +251,7 @@ The repository is judged as production code.
 
 **Submission**
 - Create the bundle with `git bundle create <name>.bundle --all` and attach it to a reply to the original email.
+- `docs/` explains the architecture, design choices, engineering principles and evaluation for reviewers. Keep it in step with the code and DECISIONS.md.
 - Before sending, clone the bundle into a fresh directory and run the exact build and run commands twice: once with no key, once with a key.
 
 ## HPC
