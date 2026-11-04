@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,3 +64,16 @@ class Settings:
         if self.provider in available:
             return self.provider if available[self.provider] else None
         return next((name for name, present in available.items() if present), None)
+
+
+def load_dotenv(path: Path) -> None:
+    """Set variables from a `KEY=value` file without overriding the real environment.
+
+    For development tools only; the container takes its keys from the environment.
+    """
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and not key.strip().startswith("#"):
+            os.environ.setdefault(key.strip(), value.strip().strip("'\""))
