@@ -59,7 +59,7 @@ def main() -> None:
     remaining = [label for label in labels if label not in held_out_set]
     print(f"labels {len(labels)}  held out {len(held_out)}")
     for power in args.powers:
-        metrics = evaluate(LabelIndex(remaining, coverage_power=power), held_out, catalogue)
+        metrics = evaluate(LabelIndex.build(remaining, coverage_power=power), held_out, catalogue)
         summary = "  ".join(f"{name} {value:.3f}" for name, value in metrics.items())
         print(f"coverage_power {power:.1f}  {summary}")
 

@@ -24,7 +24,7 @@ def main() -> None:
     args = parser.parse_args()
 
     catalogue = Catalogue.load(KB_DIR, args.language)
-    coder = OfflineCoder(catalogue, LabelIndex(catalogue_labels(catalogue, args.language)))
+    coder = OfflineCoder(catalogue, LabelIndex.build(catalogue_labels(catalogue, args.language)))
     examples = load_examples(args.gold)
     predictions = {example.id: coder.predict(example.text) for example in examples}
     print(format_report(evaluate(examples, predictions, catalogue)))

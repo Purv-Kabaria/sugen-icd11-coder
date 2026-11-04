@@ -30,9 +30,18 @@ NUMBER_QUALIFIERS = frozenset(
 CJK_PATTERN = re.compile(r"[぀-ヿ㐀-鿿豈-﫿]")
 
 
-@lru_cache(maxsize=1)
-def _english_stemmer() -> snowballstemmer.stemmer:
-    return snowballstemmer.stemmer("english")
+def _latin_folding_table() -> dict[int, str]:
+    table = {0xFFFD: " "}
+    for code_point in range(0x80, LATIN_LIMIT):
+        decomposed = unicodedata.normalize("NFKD", chr(code_point))
+        stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+        if stripped != chr(code_point):
+            table[code_point] = stripped
+    return table
+
+
+LATIN_FOLDING = _latin_folding_table()
+STEMMER = snowballstemmer.stemmer("english")
 
 
 def fold(text: str) -> str:
@@ -41,14 +50,12 @@ def fold(text: str) -> str:
     Only Latin letters lose their marks: in Devanagari or Arabic the combining marks
     carry vowels, so removing them would destroy the word.
     """
-    folded = []
-    for character in text.replace("�", " "):
-        if ord(character) < LATIN_LIMIT:
-            decomposed = unicodedata.normalize("NFKD", character)
-            folded.append("".join(c for c in decomposed if not unicodedata.combining(c)))
-        else:
-            folded.append(character)
-    return "".join(folded).lower()
+    return text.translate(LATIN_FOLDING).lower()
+
+
+@lru_cache(maxsize=200_000)
+def _matching_form(word: str) -> str:
+    return str(STEMMER.stemWord(unify_spelling(word))) if word.isascii() else word
 
 
 def unify_spelling(token: str) -> str:
@@ -68,7 +75,6 @@ def tokens(text: str) -> list[str]:
     with that word; any other number would match doses and vital signs. Runs of CJK
     characters, which have no spaces, become overlapping character bigrams.
     """
-    stemmer = _english_stemmer()
     result: list[str] = []
     previous = ""
     for token in TOKEN_PATTERN.findall(fold(text)):
@@ -78,7 +84,7 @@ def tokens(text: str) -> list[str]:
         elif CJK_PATTERN.search(token):
             result.extend(_bigrams(token))
         elif token not in STOPWORDS and len(token) > 1:
-            result.append(stemmer.stemWord(unify_spelling(token)) if token.isascii() else token)
+            result.append(_matching_form(token))
         previous = token
     return result
 
