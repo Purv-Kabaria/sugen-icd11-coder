@@ -76,3 +76,8 @@ def test_guards() -> None:
     assert not streak.tripped()
     streak.record(succeeded=False)
     assert streak.tripped()
+
+
+def test_model_directory_defaults_and_can_be_disabled() -> None:
+    assert Settings.from_environment({}).model_dir == Path("data/models")
+    assert Settings.from_environment({"ICD_CODER_MODEL_DIR": "none"}).model_dir is None

@@ -46,13 +46,14 @@ MODEL_DIR = Path("data/models")
 FEATURE_MODULES = (clinical_text, features, language, lexical, offline, text)
 FOLDS = 5
 MAX_ROUNDS = 1000
-EARLY_STOPPING_ROUNDS = 50
+EARLY_STOPPING_ROUNDS = 100
 ENSEMBLE_SEEDS = (11, 23, 37, 51, 73)
 BOOTSTRAP_SAMPLES = 2000
 PARAMETERS: dict[str, object] = {
     "objective": "lambdarank",
     "metric": "ndcg",
-    "eval_at": [1, 3],
+    "eval_at": [1],
+    "first_metric_only": True,
     "lambdarank_truncation_level": 10,
     "learning_rate": 0.05,
     "num_leaves": 15,
@@ -79,8 +80,10 @@ class NoteCandidates:
         return np.array([code in self.example.gold for code in self.codes], dtype=np.int32)
 
     def ranked(self, scores: npt.NDArray[np.float64]) -> tuple[str, ...]:
+        """The top codes by score, padded from the rules exactly as `OfflineCoder` does."""
         order = np.argsort(-scores, kind="stable")[:MAX_CODES]
-        return tuple(self.codes[index] for index in order)
+        learned = [self.codes[index] for index in order]
+        return tuple(dict.fromkeys([*learned, *self.rules]))[:MAX_CODES]
 
 
 def main() -> None:
@@ -181,9 +184,7 @@ def compare(
     catalogue: Catalogue,
 ) -> None:
     predictions = {
-        note.example.id: note.ranked(ensemble_scores(models, note.features))
-        for note in notes
-        if note.codes
+        note.example.id: note.ranked(ensemble_scores(models, note.features)) for note in notes
     }
     _report(f"held-out {name}", notes, predictions, catalogue)
 
@@ -279,17 +280,18 @@ def _read_cache(path: Path, examples: Sequence[Example]) -> list[NoteCandidates]
         if stored["ids"].tolist() != [example.id for example in examples]:
             msg = f"feature cache {path} does not match its notes"
             raise ValueError(msg)
-        starts = np.concatenate([[0], np.cumsum(stored["sizes"])])
-        codes = stored["codes"].tolist()
-        return [
-            NoteCandidates(
-                example,
-                tuple(codes[starts[row] : starts[row + 1]]),
-                stored["features"][starts[row] : starts[row + 1]],
-                tuple(code for code in stored["rules"][row].tolist() if code),
-            )
-            for row, example in enumerate(examples)
-        ]
+        sizes, codes = stored["sizes"], stored["codes"].tolist()
+        matrix, rules = stored["features"], stored["rules"].tolist()
+    starts = np.concatenate([[0], np.cumsum(sizes)])
+    return [
+        NoteCandidates(
+            example,
+            tuple(codes[starts[row] : starts[row + 1]]),
+            matrix[starts[row] : starts[row + 1]],
+            tuple(code for code in rules[row] if code),
+        )
+        for row, example in enumerate(examples)
+    ]
 
 
 if __name__ == "__main__":

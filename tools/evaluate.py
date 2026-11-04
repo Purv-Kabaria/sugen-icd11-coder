@@ -73,7 +73,7 @@ def main() -> None:
     if args.offline:
         os.environ["ICD_CODER_PROVIDER"] = "none"
     if args.rules:
-        os.environ["ICD_CODER_MODEL_DIR"] = ""
+        os.environ["ICD_CODER_MODEL_DIR"] = "none"
     settings = Settings.from_environment(os.environ)
 
     examples = load_examples(args.gold)
