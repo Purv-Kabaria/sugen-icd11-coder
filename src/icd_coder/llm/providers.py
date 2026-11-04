@@ -23,6 +23,8 @@ from openai.types.chat.completion_create_params import ResponseFormat
 from openai.types.responses import ResponseTextConfigParam
 from openai.types.shared_params import Reasoning
 
+from icd_coder.llm.rate_limit import TokenRateLimiter
+
 LOG = logging.getLogger(__name__)
 CHARACTERS_PER_TOKEN = 3.0
 
@@ -199,10 +201,12 @@ class ChatCompletionsProvider:
         timeout_seconds: float,
         effort: str | None = None,
         max_retries: int = 6,
+        limiter: TokenRateLimiter | None = None,
     ) -> None:
         self.model = model
         self.price = Price(0.0, 0.0, 0.0, 0.0)
         self._effort = openai_effort(effort) if effort else None
+        self._limiter = limiter
         self._client = openai.OpenAI(
             base_url=base_url, api_key=api_key, timeout=timeout_seconds, max_retries=max_retries
         )
@@ -231,6 +235,8 @@ class ChatCompletionsProvider:
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ]
+        estimate = int((len(system) + len(prompt)) / CHARACTERS_PER_TOKEN) + max_output_tokens
+        reservation = self._limiter.reserve(estimate) if self._limiter else None
         try:
             response = self._client.chat.completions.create(
                 model=self.model,
@@ -243,13 +249,15 @@ class ChatCompletionsProvider:
             raise ProviderError(f"chat completions {error.code or error.message}") from error
         except openai.APIError as error:
             raise ProviderError(f"chat completions {type(error).__name__}") from error
-        choice = response.choices[0]
-        if choice.finish_reason != "stop" or not choice.message.content:
-            raise ProviderError(f"chat completions finish_reason {choice.finish_reason}")
         usage = Usage(
             input_tokens=response.usage.prompt_tokens if response.usage else 0,
             output_tokens=response.usage.completion_tokens if response.usage else 0,
         )
+        if self._limiter and reservation and response.usage:
+            self._limiter.settle(reservation, response.usage.total_tokens)
+        choice = response.choices[0]
+        if choice.finish_reason != "stop" or not choice.message.content:
+            raise ProviderError(f"chat completions finish_reason {choice.finish_reason}")
         return Reply(_parse_object(choice.message.content), usage, 0.0)
 
 

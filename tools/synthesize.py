@@ -34,7 +34,7 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -52,9 +52,11 @@ from icd_coder.llm.providers import (
     Provider,
     ProviderError,
 )
+from icd_coder.llm.rate_limit import TokenRateLimiter
 
 LOG = logging.getLogger("synthesize")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_TOKENS_PER_MINUTE = 7_000
 SLICE_CHAPTERS = [f"{number:02d}" for number in range(1, 23)] + ["24", "25"]
 OTHER_SPECIFIED_RATE = 0.05
 
@@ -356,10 +358,17 @@ def build_provider(spec: str, cache_dir: Path) -> Provider:
             timeout_seconds=180,
             effort=reasoning,
             max_retries=8,
+            limiter=_groq_limiter(model),
         )
     else:
         raise ValueError(f"unknown provider kind {kind!r}")
     return CachingProvider(provider, cache_dir)
+
+
+@cache
+def _groq_limiter(_model: str) -> TokenRateLimiter:
+    """The limiter for a model, cached by name: Groq's free tier counts tokens per model."""
+    return TokenRateLimiter(GROQ_TOKENS_PER_MINUTE)
 
 
 def split_name(note_id: str) -> str:
@@ -376,7 +385,7 @@ def main() -> None:
     parser.add_argument("--writer", default="groq:qwen/qwen3.8-27b")
     parser.add_argument("--judge", default="groq:openai/gpt-oss-120b:low", help="or none")
     parser.add_argument("--budget", type=float, default=5.0)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=2026)
     args = parser.parse_args()
 

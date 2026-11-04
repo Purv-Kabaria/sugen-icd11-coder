@@ -76,6 +76,12 @@ subject line. Times are IST.
 - Evidence: with every translation searched, English dev top-1 fell from 0.600 to 0.583 as foreign labels added noise; with the filter it is back to 0.600/0.817 (50.4 of 75). On held-out WHO translations (`experiments/label_holdout.py --language`), the translations lift exact top-1 from 0.253 to 0.495 for French and from 0.159 to 0.497 for Spanish. Per-language masks are precomputed, so filtering adds no measurable latency.
 - Revisit: a multilingual dense encoder for languages WHO has not translated (Swahili, Hindi).
 
+## 2026-11-04 14:35 IST - Pace Groq requests instead of retrying 429s
+- Commit: Pace Groq requests under the per-model token limit
+- Decision: a thread-safe sliding-window limiter per model reserves the estimated tokens (prompt length / 3 plus the output cap) before each request and settles to the reported usage after it. Generation runs with 4 workers instead of 12, and target counts are sized to the free tier's 1,000 requests per day per model (eval sets 400 + 360 notes, training sets 550 + 400). Considered more SDK retries with longer backoff.
+- Evidence: with 12 workers and SDK backoff alone, the first runs lost targets once retries were exhausted ("target CA24 failed: chat completions RateLimitError", six such failures in five minutes). With the limiter the relaunched runs had no failed targets. Replies are cached on disk, so the relaunch reused every completed call.
+- Revisit: read Groq's rate-limit headers to adapt the window instead of using a fixed 7,000 tokens per minute.
+
 ## AI tooling mistakes caught
 
 - 2026-11-04: the first tokenizer (written by Claude Code) kept bare numbers as tokens. Error analysis showed dose and vital-sign numbers matching chemical labels ("2,8 dihydroxyadenine urolithiasis" for a constipation note). Fixed by fusing numbers with qualifiers only.
