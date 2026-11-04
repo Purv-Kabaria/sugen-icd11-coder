@@ -26,3 +26,6 @@ cache/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local run inputs
+in/

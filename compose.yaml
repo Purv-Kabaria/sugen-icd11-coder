@@ -1,0 +1,22 @@
+services:
+  coder:
+    build: .
+    image: icd-coder:latest
+    environment:
+      - ANTHROPIC_API_KEY
+      - OPENAI_API_KEY
+      - HTTPS_PROXY
+      - https_proxy
+      - HTTP_PROXY
+      - http_proxy
+      - NO_PROXY
+      - no_proxy
+      - ICD_CODER_PROVIDER
+      - ICD_CODER_ANTHROPIC_MODEL
+      - ICD_CODER_OPENAI_MODEL
+      - ICD_CODER_DEADLINE_SECONDS
+      - ICD_CODER_BUDGET_USD
+      - ICD_CODER_CONCURRENCY
+    volumes:
+      - ./in:/in
+      - ./out:/out

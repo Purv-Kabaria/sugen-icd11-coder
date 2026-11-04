@@ -180,6 +180,12 @@ The repository is judged as production code.
 - No mutable state at module level.
 - Each module and function has one job. Names state intent. Avoid abbreviations other than ICD, MMS and LLM.
 
+**Performance**
+- Treat speed and resource use as requirements. Measure timings and record them in `DECISIONS.md`.
+- Persist anything expensive (indexes, embeddings, tokenised corpora), keyed by a hash of its inputs and code, and build it at image build time with `icd-coder-prepare`. Never rebuild it per run.
+- Parallelise long work: a process pool for CPU-bound work, a thread pool for API calls.
+- Avoid pure-Python loops in hot paths when a vectorised (numpy/scipy) or memoised form exists.
+
 **Comments**
 - Comments explain why, never what. Write one only for a non-obvious constraint or to name the brief rule being enforced.
 - No commented-out code and no banner comments.
