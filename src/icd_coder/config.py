@@ -3,11 +3,27 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 PREFIX = "ICD_CODER_"
+
+
+@dataclass(frozen=True, slots=True)
+class CompatibleEndpoint:
+    """An OpenAI-compatible model server: Groq, OpenRouter, vLLM, Ollama and the like.
+
+    `price` is US dollars per million input and output tokens; without one, spend is
+    counted at a cautious default so the budget still stops the run.
+    """
+
+    base_url: str
+    model: str
+    api_key: str = field(repr=False)
+    price: tuple[float, float] | None
+    effort: str | None
+    tokens_per_minute: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +44,7 @@ class Settings:
     request_timeout_seconds: float
     failure_limit: int
     response_cache_dir: Path | None
+    compatible: CompatibleEndpoint | None
     has_anthropic_key: bool
     has_openai_key: bool
 
@@ -56,18 +73,40 @@ class Settings:
             request_timeout_seconds=float(setting("REQUEST_TIMEOUT_SECONDS", "60")),
             failure_limit=int(setting("FAILURE_LIMIT", "12")),
             response_cache_dir=Path(cache) if (cache := setting("RESPONSE_CACHE", "")) else None,
+            compatible=_compatible_endpoint(setting),
             has_anthropic_key=bool(environ.get("ANTHROPIC_API_KEY", "").strip()),
             has_openai_key=bool(environ.get("OPENAI_API_KEY", "").strip()),
         )
 
     def chosen_provider(self) -> str | None:
         """The provider to call, or None to run offline only."""
-        available = {"anthropic": self.has_anthropic_key, "openai": self.has_openai_key}
+        available = {
+            "anthropic": self.has_anthropic_key,
+            "openai": self.has_openai_key,
+            "compatible": self.compatible is not None,
+        }
         if self.provider == "none":
             return None
         if self.provider in available:
             return self.provider if available[self.provider] else None
         return next((name for name, present in available.items() if present), None)
+
+
+def _compatible_endpoint(setting: Callable[[str, str], str]) -> CompatibleEndpoint | None:
+    base_url, model = setting("COMPATIBLE_BASE_URL", ""), setting("COMPATIBLE_MODEL", "")
+    if not base_url or not model:
+        return None
+    price = setting("COMPATIBLE_PRICE", "")
+    input_price, _, output_price = price.partition(",")
+    tokens_per_minute = setting("COMPATIBLE_TOKENS_PER_MINUTE", "")
+    return CompatibleEndpoint(
+        base_url=base_url,
+        model=model,
+        api_key=setting("COMPATIBLE_API_KEY", "none"),
+        price=(float(input_price), float(output_price)) if price else None,
+        effort=setting("COMPATIBLE_EFFORT", "") or None,
+        tokens_per_minute=int(tokens_per_minute) if tokens_per_minute else None,
+    )
 
 
 def load_dotenv(path: Path) -> None:

@@ -185,11 +185,14 @@ class OpenAIProvider:
 
 
 class ChatCompletionsProvider:
-    """Any OpenAI-compatible Chat Completions endpoint, such as Groq, for development.
+    """Any OpenAI-compatible Chat Completions endpoint.
 
-    Not reachable from the grading box; used to generate data and to exercise the model
-    path with open-weight models. Strict schema decoding is tried first; models that
-    cannot decode a schema fall back to plain JSON mode with the schema in the prompt.
+    Most hosted and self-hosted model servers speak this protocol (Groq, OpenRouter,
+    Together, Mistral, Gemini's compatible endpoint, Azure, vLLM, Ollama), so one
+    adapter reaches all of them. The grading box can reach only Anthropic and OpenAI, so
+    this serves development and other deployments. Strict schema decoding is tried
+    first; models that cannot decode a schema fall back to plain JSON mode with the
+    schema in the prompt. Without a known price, spend is counted at a cautious one.
     """
 
     def __init__(
@@ -199,12 +202,13 @@ class ChatCompletionsProvider:
         base_url: str,
         api_key: str,
         timeout_seconds: float,
+        price: Price = UNKNOWN_MODEL_PRICE,
         effort: str | None = None,
         max_retries: int = 6,
         limiter: TokenRateLimiter | None = None,
     ) -> None:
         self.model = model
-        self.price = Price(0.0, 0.0, 0.0, 0.0)
+        self.price = price
         self._effort = openai_effort(effort) if effort else None
         self._limiter = limiter
         self._client = openai.OpenAI(
@@ -258,7 +262,7 @@ class ChatCompletionsProvider:
         choice = response.choices[0]
         if choice.finish_reason != "stop" or not choice.message.content:
             raise ProviderError(f"chat completions finish_reason {choice.finish_reason}")
-        return Reply(_parse_object(choice.message.content), usage, 0.0)
+        return Reply(_parse_object(choice.message.content), usage, self.price.cost(usage))
 
 
 def _schema_format(schema: Mapping[str, Any]) -> ResponseFormat:

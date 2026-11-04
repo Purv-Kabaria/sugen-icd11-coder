@@ -9,7 +9,16 @@ from icd_coder.config import Settings
 from icd_coder.guards import Budget, FailureStreak
 from icd_coder.lexical import LabelIndex
 from icd_coder.llm.coder import ModelCoder
-from icd_coder.llm.providers import AnthropicProvider, CachingProvider, OpenAIProvider, Provider
+from icd_coder.llm.providers import (
+    UNKNOWN_MODEL_PRICE,
+    AnthropicProvider,
+    CachingProvider,
+    ChatCompletionsProvider,
+    OpenAIProvider,
+    Price,
+    Provider,
+)
+from icd_coder.llm.rate_limit import TokenRateLimiter
 
 LOG = logging.getLogger(__name__)
 
@@ -21,10 +30,28 @@ def _provider(settings: Settings, name: str) -> Provider:
             effort=settings.anthropic_effort,
             timeout_seconds=settings.request_timeout_seconds,
         )
-    return OpenAIProvider(
-        settings.openai_model,
-        effort=settings.openai_effort,
+    if name == "openai":
+        return OpenAIProvider(
+            settings.openai_model,
+            effort=settings.openai_effort,
+            timeout_seconds=settings.request_timeout_seconds,
+        )
+    endpoint = settings.compatible
+    if endpoint is None:
+        msg = "no compatible endpoint configured"
+        raise ValueError(msg)
+    if endpoint.price is None:
+        LOG.warning("no price for %s; counting spend at a cautious default", endpoint.model)
+    return ChatCompletionsProvider(
+        endpoint.model,
+        base_url=endpoint.base_url,
+        api_key=endpoint.api_key,
         timeout_seconds=settings.request_timeout_seconds,
+        price=Price(*endpoint.price, 0.0, 0.0) if endpoint.price else UNKNOWN_MODEL_PRICE,
+        effort=endpoint.effort,
+        limiter=TokenRateLimiter(endpoint.tokens_per_minute)
+        if endpoint.tokens_per_minute
+        else None,
     )
 
 

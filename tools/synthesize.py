@@ -49,6 +49,7 @@ from icd_coder.llm.providers import (
     CachingProvider,
     ChatCompletionsProvider,
     OpenAIProvider,
+    Price,
     Provider,
     ProviderError,
 )
@@ -57,6 +58,7 @@ from icd_coder.llm.rate_limit import TokenRateLimiter
 LOG = logging.getLogger("synthesize")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_TOKENS_PER_MINUTE = 7_000
+FREE_TIER = Price(0.0, 0.0, 0.0, 0.0)
 SLICE_CHAPTERS = [f"{number:02d}" for number in range(1, 23)] + ["24", "25"]
 OTHER_SPECIFIED_RATE = 0.05
 
@@ -358,6 +360,7 @@ def build_provider(spec: str, cache_dir: Path) -> Provider:
             timeout_seconds=180,
             effort=reasoning,
             max_retries=8,
+            price=FREE_TIER,
             limiter=_groq_limiter(model),
         )
     else:

@@ -80,7 +80,7 @@ These hold whatever the implementation looks like.
 
    Invalid codes are dropped, and the list is filled from the offline ranking.
 5. One failed note never stops the run. Exceptions are caught for each note, logged with the note id, and that note falls back to its offline prediction.
-6. Providers sit behind one interface, with an adapter for Anthropic and one for OpenAI. The adapter is chosen by which key is present. Tests use a fake provider and never touch the network.
+6. Providers sit behind one interface, with adapters for Anthropic, OpenAI and any OpenAI-compatible server. The adapter is chosen by which key or endpoint is configured; Anthropic and OpenAI win automatic choice because they are the only hosts the grading box reaches. Tests use a fake provider and never touch the network.
 7. Cost is computed from each response's `usage` block, using a price table in config. Never estimate spend from prompt length alone.
 
 ## Model and API facts (checked 2026-11-04)
