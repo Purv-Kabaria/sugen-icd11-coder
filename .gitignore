@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Run outputs and caches
+out/
+cache/
+*.log
+
+# Deliverables
+*.bundle
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
