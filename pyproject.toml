@@ -19,6 +19,8 @@ icd-coder-prepare = "icd_coder.cli:prepare"
 
 [dependency-groups]
 dev = [
+    "anthropic[bedrock]==2.4.0",
+    "botocore[crt]>=1.43.123",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
     "ruff>=0.17.3",

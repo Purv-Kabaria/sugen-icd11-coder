@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+import anthropic
+
 from icd_coder.catalogue import Catalogue
 from icd_coder.config import Settings
 from icd_coder.guards import Budget, FailureStreak
@@ -29,6 +31,18 @@ def _provider(settings: Settings, name: str) -> Provider:
             settings.anthropic_model,
             effort=settings.anthropic_effort,
             timeout_seconds=settings.request_timeout_seconds,
+        )
+    if name == "bedrock":
+        client = anthropic.AnthropicBedrock(
+            aws_region=settings.bedrock_region,
+            timeout=settings.request_timeout_seconds,
+            max_retries=2,
+        )
+        return AnthropicProvider(
+            settings.bedrock_model,
+            effort=settings.bedrock_effort,
+            timeout_seconds=settings.request_timeout_seconds,
+            client=client,
         )
     if name == "openai":
         return OpenAIProvider(
@@ -65,7 +79,7 @@ def build_model_coder(
         return None
     try:
         provider = _provider(settings, name)
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, ImportError) as error:
         LOG.error("cannot set up provider %s (%s); running offline only", name, error)
         return None
     if settings.response_cache_dir is not None:

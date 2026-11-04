@@ -45,6 +45,9 @@ class Settings:
     failure_limit: int
     response_cache_dir: Path | None
     compatible: CompatibleEndpoint | None
+    bedrock_model: str
+    bedrock_region: str
+    bedrock_effort: str | None
     has_anthropic_key: bool
     has_openai_key: bool
 
@@ -74,12 +77,23 @@ class Settings:
             failure_limit=int(setting("FAILURE_LIMIT", "12")),
             response_cache_dir=Path(cache) if (cache := setting("RESPONSE_CACHE", "")) else None,
             compatible=_compatible_endpoint(setting),
+            bedrock_model=setting("BEDROCK_MODEL", "us.anthropic.claude-haiku-5-5"),
+            bedrock_region=setting("BEDROCK_REGION", environ.get("AWS_REGION", "us-east-1")),
+            bedrock_effort=None
+            if (bedrock_effort := setting("BEDROCK_EFFORT", "low")) == "none"
+            else bedrock_effort,
             has_anthropic_key=bool(environ.get("ANTHROPIC_API_KEY", "").strip()),
             has_openai_key=bool(environ.get("OPENAI_API_KEY", "").strip()),
         )
 
     def chosen_provider(self) -> str | None:
-        """The provider to call, or None to run offline only."""
+        """The provider to call, or None to run offline only.
+
+        Bedrock is used only when chosen explicitly: its AWS credentials are not a
+        signal that the run should spend money, and the grading box cannot reach it.
+        """
+        if self.provider == "bedrock":
+            return "bedrock"
         available = {
             "anthropic": self.has_anthropic_key,
             "openai": self.has_openai_key,

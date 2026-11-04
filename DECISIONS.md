@@ -100,6 +100,12 @@ subject line. Times are IST.
 - Evidence: 7 new tests cover endpoint parsing, provider choice, the factory, billing from usage and the key staying out of repr, with a faked client and no network.
 - Revisit: an asyncio client if concurrency ever needs to go far beyond the 16 threads used now.
 
+## 2026-11-04 15:50 IST - Claude on Amazon Bedrock for development
+- Commit: Run Claude through Amazon Bedrock in development
+- Decision: measure the model path with real Claude models through Bedrock, paid from AWS credits, because no Anthropic or OpenAI key is available. The Anthropic adapter takes the SDK's `AnthropicBedrock` client and sends `effort` only when set; Bedrock model ids (`us.anthropic.claude-haiku-5-5`) resolve to the Claude price table. Bedrock is used only with `ICD_CODER_PROVIDER=bedrock`, never by automatic choice, and boto3 stays a development dependency so the image is unchanged. Considered the Groq stand-in (free, but a different model family from the one graders will use) and the `AnthropicBedrockMantle` client (the newer Bedrock endpoint, but it answered 404 for Haiku 5.5, which this account serves only through inference profiles on `bedrock-runtime`).
+- Evidence: `bedrock list-foundation-models` lists Haiku 5.5 as active, and a test call reached it through the `us.` inference profile. The account first needs Anthropic's one-time use-case form: before it, Haiku 5.5 and Sonnet 5.5 returned 403 and Haiku 4.5 returned "use case details have not been submitted". Login uses `aws login` console credentials, which need `botocore[crt]`.
+- Revisit: run the model path on dev and held-out notes once access is granted.
+
 ## AI tooling mistakes caught
 
 - 2026-11-04: the first tokenizer (written by Claude Code) kept bare numbers as tokens. Error analysis showed dose and vital-sign numbers matching chemical labels ("2,8 dihydroxyadenine urolithiasis" for a constipation note). Fixed by fusing numbers with qualifiers only.

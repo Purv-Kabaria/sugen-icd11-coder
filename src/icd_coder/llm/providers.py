@@ -72,6 +72,7 @@ PRICES: Mapping[str, Price] = {
     "claude-haiku-5-5": Price(0.10, 0.50, 0.01, 0.125),
     "claude-sonnet-5-5": Price(2.00, 10.00, 0.20, 2.50),
     "claude-opus-5-5": Price(4.00, 20.00, 0.20, 5.00),
+    "claude-haiku-4-5": Price(1.00, 5.00, 0.10, 1.25),
     "gpt-5.4-nano": Price(0.20, 1.25, 0.02, 0.20),
     "gpt-5.4-mini": Price(0.75, 4.50, 0.075, 0.75),
     "gpt-5-mini": Price(0.25, 2.00, 0.025, 0.25),
@@ -81,7 +82,13 @@ UNKNOWN_MODEL_PRICE = Price(5.00, 25.00, 0.50, 6.25)
 
 
 def price_of(model: str) -> Price:
-    return PRICES.get(model, UNKNOWN_MODEL_PRICE)
+    """The price of a model, also by its Bedrock id (`us.anthropic.claude-haiku-4-5-...`)."""
+    if model in PRICES:
+        return PRICES[model]
+    return next(
+        (price for name, price in PRICES.items() if f"anthropic.{name}" in model),
+        UNKNOWN_MODEL_PRICE,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,22 +110,36 @@ class Provider(Protocol):
 
 
 class AnthropicProvider:
+    """Claude through the Anthropic API, or through Amazon Bedrock when given its client.
+
+    `effort` is omitted for models that reject it, such as Claude Haiku 4.5.
+    """
+
     def __init__(
-        self, model: str, *, effort: str, timeout_seconds: float, max_retries: int = 2
+        self,
+        model: str,
+        *,
+        effort: str | None,
+        timeout_seconds: float,
+        max_retries: int = 2,
+        client: anthropic.Anthropic | anthropic.AnthropicBedrock | None = None,
     ) -> None:
         self.model = model
         self.price = price_of(model)
-        self._effort = anthropic_effort(effort)
-        self._client = anthropic.Anthropic(timeout=timeout_seconds, max_retries=max_retries)
+        self._effort = anthropic_effort(effort) if effort else None
+        self._client = client or anthropic.Anthropic(
+            timeout=timeout_seconds, max_retries=max_retries
+        )
 
     def complete_json(
         self, system: str, prompt: str, schema: Mapping[str, Any], max_output_tokens: int
     ) -> Reply:
         messages: list[MessageParam] = [{"role": "user", "content": prompt}]
         output_config: OutputConfigParam = {
-            "effort": self._effort,
-            "format": {"type": "json_schema", "schema": dict(schema)},
+            "format": {"type": "json_schema", "schema": dict(schema)}
         }
+        if self._effort is not None:
+            output_config["effort"] = self._effort
         try:
             response = self._client.messages.create(
                 model=self.model,
