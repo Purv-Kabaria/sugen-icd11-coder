@@ -1,11 +1,4 @@
-"""Lexical retrieval over WHO labels.
-
-Every title, index term, inclusion and translation is a separate label pointing at
-one code. A code scores as its best-matching label. Labels are short, so a label is
-scored by how much of its information the query covers, weighted by inverse document
-frequency: a fully mentioned specific label ("acute amoebic dysentery") beats a
-partially mentioned one, and longer fully mentioned labels beat shorter ones.
-"""
+"""Lexical retrieval over WHO labels."""
 
 from __future__ import annotations
 
@@ -64,12 +57,7 @@ class Evidence:
 
 
 class QueryScores:
-    """One query scored against the labels it touches, kept so codes can be inspected cheaply.
-
-    Only labels sharing a term with the query can score, so they are the only ones
-    stored: `labels` holds their row numbers in ascending order, and the other arrays
-    are aligned with it.
-    """
+    """One query scored against the labels it touches, kept so codes can be inspected cheaply."""
 
     def __init__(
         self,
@@ -229,21 +217,13 @@ class LabelIndex:
         limit: int = 50,
         languages: Collection[str] | None = None,
     ) -> list[ScoredCode]:
-        """Best codes for a query given as term weights in [0, 1].
-
-        With `languages`, only labels in those languages count, so a French note is
-        matched against English and French labels and not against Arabic ones.
-        """
+        """Best codes for a query given as term weights in [0, 1]."""
         return self.score(query, languages).top(limit)
 
     def score(
         self, query: Mapping[str, float], languages: Collection[str] | None = None
     ) -> QueryScores:
-        """Scores of the labels and codes a query touches, for ranking and for evidence.
-
-        Work is proportional to the postings of the query's terms, not to the number of
-        labels, because only labels that share a term with the query can score.
-        """
+        """Scores of the labels and codes a query touches, for ranking and for evidence."""
         terms = {
             self._term_position[term]: weight
             for term, weight in query.items()

@@ -1,18 +1,4 @@
-"""Crawl the ICD-11 MMS linearization from a local WHO ICD-API container.
-
-Start the container first, for example:
-
-    docker run -d --name icdapi-en -p 8382:80 \\
-        -e acceptLicense=true -e include=2026-01_en whoicd/icd-api:latest
-
-Then:
-
-    uv run python tools/crawl_who_mms.py --language en --out data/who/mms-2026-01.en.jsonl.gz
-
-The walk starts at the linearization root and follows `child` links, so it captures
-chapters, blocks and categories. Each output line keeps only the fields the coder
-uses, with WHO text unaltered.
-"""
+"""Crawl the ICD-11 MMS linearization from a local WHO ICD-API container."""
 
 from __future__ import annotations
 

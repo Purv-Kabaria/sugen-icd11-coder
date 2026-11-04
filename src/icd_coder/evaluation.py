@@ -1,10 +1,4 @@
-"""Metrics for gold-labelled notes: the official score plus diagnostics.
-
-`top1`, `top3` and `points` reproduce `score.py`. The rest explain the misses:
-`family_top1` counts a top-1 code in the right family (same depth-one stem), which
-separates wrong-specificity errors from wrong-disease errors, and `chapter_top1` does
-the same at chapter level.
-"""
+"""Metrics for gold-labelled notes: the official score plus diagnostics."""
 
 from __future__ import annotations
 

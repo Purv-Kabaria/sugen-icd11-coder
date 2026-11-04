@@ -1,14 +1,4 @@
-"""Candidate codes for a note and the features a learned ranker scores them by.
-
-Training and inference call the same `FeatureExtractor`, so the two can never drift.
-
-Candidates are codes that can be submitted: leaves, or parents that have no default
-child. They come from three lexical views of the note (the whole weighted note, only
-its diagnostic clauses, and each diagnostic clause alone) and are expanded through
-the hierarchy: a retrieved parent contributes its default child and its leaves, and a
-retrieved code contributes its siblings, so the right level of specificity is always
-among the candidates even when the note never names it.
-"""
+"""Candidate codes for a note and the features a learned ranker scores them by."""
 
 from __future__ import annotations
 

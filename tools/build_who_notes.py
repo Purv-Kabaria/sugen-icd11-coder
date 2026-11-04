@@ -1,23 +1,4 @@
-"""Build labelled training notes from WHO's own ICD-11 text, with no model calls.
-
-Each note is written from templates around one target code, in one of four ways:
-
-- definition: the code's WHO definition, which is prose and never indexed as a label,
-  so the note cannot match its gold code word for word;
-- term: one of the code's index terms or inclusions with realistic noise (lower case,
-  a dropped word, an abbreviation);
-- parent: the parent's term only, when the parent has a default child; gold is that
-  child, which teaches the "unspecified" convention;
-- translated: the code's WHO title in French, Spanish, Portuguese, Russian, Arabic or
-  Chinese.
-
-Every English note also carries what real consults carry: complaints, past history
-from another chapter, a negated sibling condition, findings and a plan. Code families
-(depth-one ancestors) are split 80/20 by a hash of their code, so held-out notes are
-about families the ranker never saw. The 60 dev notes are not read.
-
-    uv run python tools/build_who_notes.py --count 12000
-"""
+"""Build labelled training notes from WHO's own ICD-11 text, with no model calls."""
 
 from __future__ import annotations
 

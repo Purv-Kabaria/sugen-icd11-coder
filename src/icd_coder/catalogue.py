@@ -110,13 +110,7 @@ class Catalogue:
         return tuple(self._by_code[child] for child in self._children.get(code, ()))
 
     def default_child(self, code: str) -> Category | None:
-        """The child to code when the note adds nothing beyond the parent.
-
-        In order of preference, following ICD-11 conventions: the `.Z` residual, a child
-        titled as unspecified (`CA23.3 Unspecified asthma`), then a child "without
-        complication" (`1D80.0 Mumps without complication`). A rule only applies when
-        exactly one child matches it.
-        """
+        """The child to code when the note adds nothing beyond the parent."""
         children = self.children(code)
         rules = (
             lambda child: child.is_unspecified,
@@ -130,12 +124,7 @@ class Catalogue:
         return None
 
     def most_specific_default(self, code: str) -> str:
-        """Follow default children down from a code until none applies.
-
-        Gold is the most specific code the note supports, and the default child is
-        right when the note gives no further detail. A parent without a default child
-        is returned unchanged because it is then the only defensible choice.
-        """
+        """Follow default children down from a code until none applies."""
         current = code
         while (child := self.default_child(current)) is not None:
             current = child.code

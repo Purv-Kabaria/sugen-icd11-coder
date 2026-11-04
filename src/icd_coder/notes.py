@@ -23,11 +23,7 @@ class Note:
 
 
 def read_notes(path: Path) -> list[Note]:
-    """Every note with a usable id, in file order.
-
-    A line that is not JSON or has no string or integer id cannot be answered and is
-    skipped with a warning. A repeated id keeps its first line, as the scorer does.
-    """
+    """Every note with a usable id, in file order."""
     notes: list[Note] = []
     seen: set[NoteId] = set()
     with path.open(encoding="utf-8-sig", errors="replace") as handle:
@@ -53,11 +49,7 @@ def read_notes(path: Path) -> list[Note]:
 
 
 class PredictionWriter:
-    """Writes one line per note and flushes it at once, so a killed run keeps finished work.
-
-    The scorer keeps the first line for an id, so a second write for the same id is
-    refused rather than appended.
-    """
+    """Writes one line per note and flushes it at once, so a killed run keeps finished work."""
 
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,9 +1,4 @@
-"""Instructions and JSON schemas for the two model calls.
-
-Schemas list every property as required and forbid extra ones, the strictest form
-both providers accept for structured output. Length limits are enforced in code,
-because not every provider supports `maxItems`.
-"""
+"""Instructions and JSON schemas for the two model calls."""
 
 from __future__ import annotations
 

@@ -1,19 +1,4 @@
-"""Train the LightGBM reranker on synthetic notes and compare it with the rule-based ranking.
-
-    uv run python tools/train_reranker.py \
-        --train eval/train-a/notes.jsonl eval/train-b/notes.jsonl \
-        --compare eval/synth-a/tune.jsonl eval/synth-b/tune.jsonl
-
-1. Candidates and features for every note, cached by a hash of the data and the code
-   that produces them.
-2. Five-fold cross-validation over the training notes, grouped by the gold code's
-   family, so no fold is scored on a family it was trained on. Out-of-fold rankings
-   are compared with the rules, and the folds choose the number of boosting rounds.
-3. A seed-bagged ensemble trained on every training note is written to `data/models`
-   and scored on the `--compare` sets, which take no part in training or selection.
-
-Dev notes are never accepted as training input.
-"""
+"""Train the LightGBM reranker and compare it with the rule-based ranking."""
 
 from __future__ import annotations
 
@@ -158,11 +143,7 @@ def cross_validate(notes: Sequence[NoteCandidates], catalogue: Catalogue) -> int
 
 
 def grouped_folds(groups: Sequence[str], folds: int) -> list[tuple[list[int], list[int]]]:
-    """Train and validation rows per fold, with every group wholly inside one fold.
-
-    Largest groups are placed first, each into the currently smallest fold, which keeps
-    the folds balanced.
-    """
+    """Train and validation rows per fold, with every group wholly inside one fold."""
     rows_by_group: dict[str, list[int]] = {}
     for row, group in enumerate(groups):
         rows_by_group.setdefault(group, []).append(row)

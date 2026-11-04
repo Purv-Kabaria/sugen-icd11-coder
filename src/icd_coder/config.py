@@ -12,11 +12,7 @@ PREFIX = "ICD_CODER_"
 
 @dataclass(frozen=True, slots=True)
 class CompatibleEndpoint:
-    """An OpenAI-compatible model server: Groq, OpenRouter, vLLM, Ollama and the like.
-
-    `price` is US dollars per million input and output tokens; without one, spend is
-    counted at a cautious default so the budget still stops the run.
-    """
+    """An OpenAI-compatible model server: Groq, OpenRouter, vLLM, Ollama and the like."""
 
     base_url: str
     model: str
@@ -87,11 +83,7 @@ class Settings:
         )
 
     def chosen_provider(self) -> str | None:
-        """The provider to call, or None to run offline only.
-
-        Bedrock is used only when chosen explicitly: its AWS credentials are not a
-        signal that the run should spend money, and the grading box cannot reach it.
-        """
+        """The provider to call, or None to run offline only."""
         if self.provider == "bedrock":
             return "bedrock"
         available = {
@@ -124,10 +116,7 @@ def _compatible_endpoint(setting: Callable[[str, str], str]) -> CompatibleEndpoi
 
 
 def load_dotenv(path: Path) -> None:
-    """Set variables from a `KEY=value` file without overriding the real environment.
-
-    For development tools only; the container takes its keys from the environment.
-    """
+    """Set variables from a `KEY=value` file without overriding the real environment."""
     if not path.exists():
         return
     for line in path.read_text(encoding="utf-8").splitlines():

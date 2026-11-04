@@ -1,8 +1,4 @@
-"""The coder that needs no network: lexical retrieval ranked by a learned model or by rules.
-
-With a trained reranker the top codes are the reranker's; without one, or to fill a
-short list, they come from weighted lexical retrieval plus specificity rules.
-"""
+"""The coder that needs no network: lexical retrieval ranked by a learned model or by rules."""
 
 from __future__ import annotations
 
@@ -40,13 +36,7 @@ class OfflineCoder:
 
 
 def specific_codes(ranked: Sequence[ScoredCode], catalogue: Catalogue) -> tuple[str, ...]:
-    """Top distinct codes, each resolved to the most specific code the note supports.
-
-    A descendant outscores its parent only when the note mentions what distinguishes it
-    (a fully matched "mumps orchitis" beats "mumps"; a half-matched one does not). So a
-    non-leaf code becomes its best descendant that outscores it, or else its default
-    child chain.
-    """
+    """Top distinct codes, each resolved to the most specific code the note supports."""
     score = {scored.code: scored.score for scored in ranked}
     codes: list[str] = []
     for scored in ranked:

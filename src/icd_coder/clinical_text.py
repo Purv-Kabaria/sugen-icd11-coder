@@ -1,11 +1,4 @@
-"""Find the diagnostic statements in a consult note.
-
-Notes mix history, examination, results and plan. The diagnosis usually sits under an
-assessment header ("A:", "Imp:", "Dx") or, in transcripts, in the clinician's
-explanation ("this is acute sinusitis"). Each clause gets a weight: diagnostic clauses
-count fully, other clauses a little, and the negated part of a clause ("malaria
-excluded", "no features of pneumonia") not at all.
-"""
+"""Find the diagnostic statements in a consult note."""
 
 from __future__ import annotations
 

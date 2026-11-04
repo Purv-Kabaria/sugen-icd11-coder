@@ -1,25 +1,4 @@
-"""Generate labelled synthetic consult notes for evaluation beyond the 60 dev notes.
-
-    uv run python tools/synthesize.py --profile primary-care --count 300 --name synth-a
-    uv run python tools/synthesize.py --profile all-chapters --count 300 --name synth-b
-
-For each target code a generator model writes a note that supports exactly that code:
-the distinguishing details of a specific code are documented, and for an unspecified
-`.Z` code they are left out, as a real clinician would leave them out. A judge model
-then checks that the target is the most specific code the note supports; notes that
-fail are dropped. Dev notes are never shown to either model, so no dev content leaks
-into the synthetic sets.
-
-Targets come from two profiles:
-- primary-care: the generator first lists conditions common in East African
-  outpatient clinics, each is mapped to its ICD-11 family by the label index, and a
-  leaf is drawn from that family (the dev-like distribution, slice A).
-- all-chapters: chapters are drawn uniformly and a leaf uniformly within the chapter,
-  across several languages and care settings (the out-of-distribution slice B).
-
-Output: `eval/<name>/notes.jsonl` (all), `tune.jsonl` and `test.jsonl` (a fixed
-50/50 split by id hash) and `MANIFEST.md`.
-"""
+"""Generate labelled synthetic consult notes for evaluation beyond the 60 dev notes."""
 
 from __future__ import annotations
 
@@ -236,12 +215,7 @@ def condition_stems(
     prompt: str,
     chapter: str | None,
 ) -> list[tuple[str, int]]:
-    """Families of the conditions a model lists, weighted by how common it says they are.
-
-    Each listed term is mapped to the best label-index match, restricted to the chapter
-    when one is given, so the sample follows what clinics see rather than how many codes
-    a chapter happens to contain.
-    """
+    """Families of the conditions a model lists, weighted by how common it says they are."""
     reply = provider.complete_json(CONDITIONS_SYSTEM, prompt, CONDITIONS_SCHEMA, 8000)
     budget.charge(reply.cost_usd)
     index = _label_index(catalogue)

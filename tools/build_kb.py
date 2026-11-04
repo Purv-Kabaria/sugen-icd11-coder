@@ -1,14 +1,4 @@
-"""Build the coder's knowledge base from the MMS code list and the WHO crawls.
-
-    uv run python tools/build_kb.py --language fr --language es
-
-Reads `data/mms-2026-01.json` (the scoreable codes) and the crawls written by
-`tools/crawl_who_mms.py` under `cache/who/`. Writes one line per scoreable category
-to `data/kb/mms-2026-01.en.jsonl.gz`, and for each extra language a file of titles,
-index terms and inclusions to `data/kb/mms-2026-01.<language>.jsonl.gz`. Languages
-live in separate files so that rebuilding the English core does not grow the git
-history by the size of every translation.
-"""
+"""Build the coder's knowledge base from the MMS code list and the WHO crawls."""
 
 from __future__ import annotations
 

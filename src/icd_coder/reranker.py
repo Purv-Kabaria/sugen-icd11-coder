@@ -1,10 +1,4 @@
-"""A learned ranker over the candidate codes of a note.
-
-An ensemble of LightGBM LambdaRank models, trained by `tools/train_reranker.py` on
-synthetic notes, scores the candidates from `FeatureExtractor`; the ensemble score
-is the mean of its members. Without model files the offline coder keeps its rule-based
-ranking, so the reranker can only add accuracy, never availability.
-"""
+"""A learned ranker over the candidate codes of a note."""
 
 from __future__ import annotations
 

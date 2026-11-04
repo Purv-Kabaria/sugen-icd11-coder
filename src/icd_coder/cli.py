@@ -1,9 +1,4 @@
-"""Command line entry points.
-
-`icd-coder <notes.jsonl> <predictions.jsonl>` codes a batch of notes.
-`icd-coder-prepare` builds the label index cache ahead of time, for example during
-the Docker image build, so a run starts in seconds.
-"""
+"""Command line entry points."""
 
 from __future__ import annotations
 

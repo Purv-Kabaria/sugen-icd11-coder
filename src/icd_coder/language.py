@@ -1,9 +1,4 @@
-"""Cheap language identification, enough to pick which WHO translations to search.
-
-Non-Latin scripts decide by character counts. Latin-script text decides by the share
-of common function words, which separates the languages WHO translates from English
-and from Swahili even in short, abbreviation-heavy notes.
-"""
+"""Cheap language identification, enough to pick which WHO translations to search."""
 
 from __future__ import annotations
 

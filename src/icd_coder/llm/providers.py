@@ -1,10 +1,4 @@
-"""One interface over model providers: a JSON answer plus its cost.
-
-Adapters exist for Anthropic, OpenAI and any OpenAI-compatible server. The official
-SDKs read their key from the environment and honour `HTTPS_PROXY`, which is the only
-route to the APIs on the grading box. Errors surface as `ProviderError` so the caller
-can fall back without knowing which SDK raised.
-"""
+"""One interface over model providers: a JSON answer plus its cost."""
 
 from __future__ import annotations
 
@@ -118,10 +112,7 @@ class Provider(Protocol):
 
 
 class AnthropicProvider:
-    """Claude through the Anthropic API, or through Amazon Bedrock when given its client.
-
-    `effort` is omitted for models that reject it, such as Claude Haiku 4.5.
-    """
+    """Claude through the Anthropic API, or through Amazon Bedrock when given its client."""
 
     def __init__(
         self,
@@ -215,15 +206,7 @@ class OpenAIProvider:
 
 
 class ChatCompletionsProvider:
-    """Any OpenAI-compatible Chat Completions endpoint.
-
-    Most hosted and self-hosted model servers speak this protocol (Groq, OpenRouter,
-    Together, Mistral, Gemini's compatible endpoint, Azure, vLLM, Ollama), so one
-    adapter reaches all of them. The grading box can reach only Anthropic and OpenAI, so
-    this serves development and other deployments. Strict schema decoding is tried
-    first; models that cannot decode a schema fall back to plain JSON mode with the
-    schema in the prompt. Without a known price, spend is counted at a cautious one.
-    """
+    """Any OpenAI-compatible Chat Completions endpoint."""
 
     def __init__(
         self,
@@ -303,11 +286,7 @@ def _schema_format(schema: Mapping[str, Any]) -> ResponseFormat:
 
 
 class CachingProvider:
-    """Replays stored replies for identical requests. For experiments, never for grading.
-
-    Re-running an evaluation after changing only post-processing should cost nothing.
-    Cached replies are charged at zero.
-    """
+    """Replays stored replies for identical requests. For experiments, never for grading."""
 
     def __init__(self, inner: Provider, cache_dir: Path) -> None:
         self.model = inner.model

@@ -1,9 +1,4 @@
-"""Common clinical abbreviations and their expansions.
-
-A general primary-care and hospital list, not tuned to any note set. Only entries
-whose expansion is a diagnosis or a body system are kept: drug, dosing and
-logistics abbreviations add nothing to code retrieval.
-"""
+"""Common clinical abbreviations and their expansions."""
 
 from __future__ import annotations
 

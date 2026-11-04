@@ -189,7 +189,7 @@ The repository is judged as production code.
 **Comments**
 - Comments explain why, never what. Write one only for a non-obvious constraint or to name the brief rule being enforced.
 - No commented-out code and no banner comments.
-- Public functions get a one-line docstring when the name alone is not enough.
+- Docstrings are one line: modules say what they are, functions and classes only when the name alone is not enough. Reasoning, alternatives and measurements belong in `docs/` and DECISIONS.md, not in the code.
 
 **Errors and logging**
 - Catch specific exceptions, such as `anthropic.RateLimitError` and `anthropic.APIConnectionError`. Never use a bare `except`.

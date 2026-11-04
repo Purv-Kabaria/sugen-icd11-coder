@@ -1,11 +1,4 @@
-"""Pick and present the categories a model chooses between.
-
-Several rankings (the model's reading of the note, its search terms, its own code
-guesses, the offline ranking of the whole note) are fused by reciprocal rank. The
-fused codes are grouped into families, and each family is shown as an indented tree
-so the model sees every specificity level, the residual `.Y` and `.Z` siblings, and
-the exclusions and coding notes that decide between them.
-"""
+"""Pick and present the categories a model chooses between."""
 
 from __future__ import annotations
 

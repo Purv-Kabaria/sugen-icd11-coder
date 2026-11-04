@@ -45,11 +45,7 @@ STEMMER = snowballstemmer.stemmer("english")
 
 
 def fold(text: str) -> str:
-    """Lowercase, strip Latin diacritics and drop replacement characters.
-
-    Only Latin letters lose their marks: in Devanagari or Arabic the combining marks
-    carry vowels, so removing them would destroy the word.
-    """
+    """Lowercase, strip Latin diacritics and drop replacement characters."""
     return text.translate(LATIN_FOLDING).lower()
 
 
@@ -69,12 +65,7 @@ def unify_spelling(token: str) -> str:
 
 
 def tokens(text: str) -> list[str]:
-    """Content tokens in matching form: folded, spelling-unified, stemmed, no stopwords.
-
-    A bare number only matters next to a qualifier ("type 2", "stage 1"), so it is fused
-    with that word; any other number would match doses and vital signs. Runs of CJK
-    characters, which have no spaces, become overlapping character bigrams.
-    """
+    """Content tokens in matching form: folded, spelling-unified, stemmed, no stopwords."""
     result: list[str] = []
     previous = ""
     for token in TOKEN_PATTERN.findall(fold(text)):

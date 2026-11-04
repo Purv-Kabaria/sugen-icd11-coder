@@ -1,13 +1,4 @@
-"""Run the full pipeline on a labelled set and report quality, cost and latency.
-
-    uv run python tools/evaluate.py --gold eval/synth-a/tune.jsonl --name synth-a-tune
-
-Settings come from the environment exactly as at run time (`ICD_CODER_*`, API keys,
-optionally from a `.env` file). Model replies are cached under `cache/replies` unless
-`--no-reply-cache` is given, so re-scoring after a post-processing change is free.
-Writes `out/<name>/predictions.jsonl` and `out/<name>/per-note.jsonl`, and checks the
-headline numbers against the official `score.py`.
-"""
+"""Run the full pipeline on a labelled set and report quality, cost and latency."""
 
 from __future__ import annotations
 

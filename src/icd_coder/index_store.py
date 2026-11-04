@@ -1,10 +1,4 @@
-"""Build the label index once and reuse it.
-
-Tokenising 700k labels takes a minute; loading the stored index takes about a second.
-The cache key covers the labels and the source of every module that shapes their
-tokens, so editing the tokenizer or the knowledge base invalidates it automatically.
-A missing, stale or unreadable cache is rebuilt, never trusted.
-"""
+"""Build the label index once and reuse it."""
 
 from __future__ import annotations
 

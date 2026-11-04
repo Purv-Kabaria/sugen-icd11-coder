@@ -1,9 +1,4 @@
-"""Client-side pacing for providers with a tokens-per-minute limit.
-
-Retrying after a 429 wastes the request and, with many threads, starves some of them
-until their retries run out. Reserving tokens before sending keeps every thread under
-the limit instead, so requests wait their turn rather than fail.
-"""
+"""Client-side pacing for providers with a tokens-per-minute limit."""
 
 from __future__ import annotations
 
@@ -30,11 +25,7 @@ class TokenRateLimiter:
         self._condition = threading.Condition()
 
     def reserve(self, tokens: int) -> Reservation:
-        """Block until `tokens` fit in the window, then claim them.
-
-        A request larger than the whole limit is let through alone, so it can never
-        wait forever.
-        """
+        """Block until `tokens` fit in the window, then claim them."""
         with self._condition:
             while True:
                 now = time.monotonic()

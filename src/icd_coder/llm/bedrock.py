@@ -1,12 +1,4 @@
-"""Models that Amazon Bedrock sells itself, through its model-neutral Converse API.
-
-One adapter reaches every Bedrock text model (DeepSeek, Kimi, GLM, Qwen, Mistral,
-gpt-oss, Nova). These are billed by AWS directly, unlike Claude on Bedrock, which is
-sold through AWS Marketplace. Converse has no schema-constrained decoding for most of
-these models, so the schema goes into the instructions and the JSON object is taken
-from the reply. For development only: boto3 is a development dependency and the
-grading box cannot reach Bedrock.
-"""
+"""Models that Amazon Bedrock sells itself, through its model-neutral Converse API."""
 
 from __future__ import annotations
 

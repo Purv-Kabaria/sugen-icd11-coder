@@ -1,10 +1,4 @@
-"""Code a batch of notes: offline first, then upgrade with a model while time and money last.
-
-The order guarantees an answer for every note. Offline predictions exist before the
-first model call, every note is written exactly once, and whatever the model has not
-finished when the deadline passes, a stop is requested or the provider gives up is
-written from the offline prediction.
-"""
+"""Code a batch of notes: offline first, then upgrade with a model while time and money last."""
 
 from __future__ import annotations
 
