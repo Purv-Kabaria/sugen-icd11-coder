@@ -19,11 +19,12 @@ from types import FrameType
 from icd_coder import index_store
 from icd_coder.catalogue import Catalogue
 from icd_coder.config import Settings
-from icd_coder.guards import Deadline
+from icd_coder.guards import Budget, Deadline
 from icd_coder.lexical import LabelIndex, catalogue_labels
+from icd_coder.llm.factory import build_model_coder
 from icd_coder.notes import PredictionWriter, read_notes
 from icd_coder.offline import OfflineCoder
-from icd_coder.pipeline import NoteUpgrader, run
+from icd_coder.pipeline import run
 
 LOG = logging.getLogger("icd_coder")
 
@@ -37,6 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     _configure_logging()
     settings = Settings.from_environment(os.environ)
     deadline = Deadline(settings.deadline_seconds)
+    budget = Budget(settings.budget_usd)
     stop = _stop_on_termination()
 
     notes = read_notes(args.notes)
@@ -49,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
                 OfflineCoder(catalogue, index),
                 catalogue,
                 writer,
-                upgrader=_build_upgrader(settings),
+                upgrader=build_model_coder(settings, catalogue, index, budget),
                 deadline=deadline,
                 concurrency=settings.concurrency,
                 stop=stop,
@@ -60,9 +62,10 @@ def main(argv: list[str] | None = None) -> int:
                 writer.write(note.id, [])
             return 1
     LOG.info(
-        "done: %d notes, %d upgraded by the model, %.1f s",
+        "done: %d notes, %d upgraded by the model, $%.4f spent, %.1f s",
         report.notes,
         report.upgraded,
+        budget.spent,
         report.seconds,
     )
     return 0
@@ -97,15 +100,6 @@ def _stop_on_termination() -> threading.Event:
 
     signal.signal(signal.SIGTERM, request_stop)
     return stop
-
-
-def _build_upgrader(settings: Settings) -> NoteUpgrader | None:
-    provider = settings.chosen_provider()
-    if provider is None:
-        LOG.info("no model provider available; running offline only")
-        return None
-    LOG.info("model upgrades not wired yet; running offline only")
-    return None
 
 
 if __name__ == "__main__":

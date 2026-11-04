@@ -64,6 +64,12 @@ subject line. Times are IST.
 - Evidence: a non-root user cannot write to a bind-mounted `/out` owned by another uid, which would zero the whole submission; robustness wins over hardening here. Cache mounts would break on the legacy builder. The image is 646 MB and codes the 60 dev notes offline in 4.7 s including container start.
 - Revisit: a non-root user if the graders confirm how `/out` is mounted.
 
+## 2026-11-04 14:20 IST - Model path: read, retrieve, choose
+- Commit: Add model coder with Anthropic and OpenAI providers
+- Decision: two calls per note. Call 1 reads the note in any language and returns the main condition as a qualified English term, index-style search phrasings and up to five code guesses. The label index is searched with each phrasing; those rankings, the guesses and the offline ranking are fused by reciprocal rank, grouped into at most 10 families, and each family is shown as an indented tree with index terms, exclusions and coding notes. Call 2 applies the coding rules and picks up to three codes from that list. Model output is validated and resolved by the pipeline, then padded from the fused ranking. Considered one call with retrieval on the raw note (weak for transcripts and non-English notes), a tool-use loop where the model searches itself (more latency, less predictable cost), and asking for codes with no candidates (models misremember ICD-11 codes).
+- Evidence: retrieval-then-rerank is the pattern that works in the literature (Retrieve-Rank, arXiv 2407.12849; MedCodER, arXiv 2409.15368), and near-miss specificity errors dominate LLM coding failures (arXiv 2510.07629), hence whole families in the prompt. Prices: Claude Haiku 5.5 costs $0.10/$0.50 per million tokens, so two calls with a 4k-token candidate list cost about $0.0006 per note, a twentieth of the 1 cent allowance.
+- Revisit: measure Sonnet 5.5 for the choice call and the effort level once API keys are available.
+
 ## AI tooling mistakes caught
 
 - 2026-11-04: the first tokenizer (written by Claude Code) kept bare numbers as tokens. Error analysis showed dose and vital-sign numbers matching chemical labels ("2,8 dihydroxyadenine urolithiasis" for a constipation note). Fixed by fusing numbers with qualifiers only.

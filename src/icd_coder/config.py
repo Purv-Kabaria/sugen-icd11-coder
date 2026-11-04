@@ -19,9 +19,13 @@ class Settings:
     concurrency: int
     provider: str
     anthropic_model: str
+    anthropic_effort: str
     openai_model: str
+    openai_effort: str
+    max_families: int
     request_timeout_seconds: float
     failure_limit: int
+    response_cache_dir: Path | None
     has_anthropic_key: bool
     has_openai_key: bool
 
@@ -40,9 +44,13 @@ class Settings:
             concurrency=int(setting("CONCURRENCY", "16")),
             provider=setting("PROVIDER", "auto").lower(),
             anthropic_model=setting("ANTHROPIC_MODEL", "claude-haiku-5-5"),
-            openai_model=setting("OPENAI_MODEL", "gpt-5-mini"),
+            anthropic_effort=setting("ANTHROPIC_EFFORT", "low"),
+            openai_model=setting("OPENAI_MODEL", "gpt-5.4-mini"),
+            openai_effort=setting("OPENAI_EFFORT", "low"),
+            max_families=int(setting("MAX_FAMILIES", "10")),
             request_timeout_seconds=float(setting("REQUEST_TIMEOUT_SECONDS", "60")),
             failure_limit=int(setting("FAILURE_LIMIT", "12")),
+            response_cache_dir=Path(cache) if (cache := setting("RESPONSE_CACHE", "")) else None,
             has_anthropic_key=bool(environ.get("ANTHROPIC_API_KEY", "").strip()),
             has_openai_key=bool(environ.get("OPENAI_API_KEY", "").strip()),
         )
