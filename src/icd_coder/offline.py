@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from icd_coder.catalogue import Catalogue
 from icd_coder.clinical_text import weighted_clauses
 from icd_coder.lexical import LabelIndex, ScoredCode, merge_queries, query_from_text
@@ -24,23 +26,27 @@ class OfflineCoder:
         return specific_codes(self.rank(text), self._catalogue)
 
 
-def specific_codes(ranked: list[ScoredCode], catalogue: Catalogue) -> tuple[str, ...]:
-    """Top distinct codes, each resolved to the most specific code the ranking supports.
+def specific_codes(ranked: Sequence[ScoredCode], catalogue: Catalogue) -> tuple[str, ...]:
+    """Top distinct codes, each resolved to the most specific code the note supports.
 
-    A non-leaf code is replaced by its best-ranked descendant when one was retrieved,
-    otherwise by its default child chain.
+    A descendant outscores its parent only when the note mentions what distinguishes it
+    (a fully matched "mumps orchitis" beats "mumps"; a half-matched one does not). So a
+    non-leaf code becomes its best descendant that outscores it, or else its default
+    child chain.
     """
-    position = {scored.code: rank for rank, scored in enumerate(ranked)}
+    score = {scored.code: scored.score for scored in ranked}
     codes: list[str] = []
     for scored in ranked:
         code = scored.code
         if not catalogue[code].is_leaf:
-            retrieved = [
-                child.code for child in catalogue.descendants(code) if child.code in position
+            supported = [
+                child.code
+                for child in catalogue.descendants(code)
+                if score.get(child.code, 0.0) > scored.score
             ]
             code = (
-                min(retrieved, key=position.__getitem__)
-                if retrieved
+                max(supported, key=score.__getitem__)
+                if supported
                 else catalogue.most_specific_default(code)
             )
         if code not in codes:

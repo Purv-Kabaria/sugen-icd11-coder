@@ -5,13 +5,16 @@ description = "Proposes ICD-11 MMS codes for outpatient consult notes."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "anthropic>=2.4.0",
     "numpy>=2.5.4",
+    "openai>=3.45.0",
     "scipy>=1.18.1",
     "snowballstemmer>=3.1.1",
 ]
 
 [project.scripts]
 icd-coder = "icd_coder.cli:main"
+icd-coder-prepare = "icd_coder.cli:prepare"
 
 [dependency-groups]
 dev = [
